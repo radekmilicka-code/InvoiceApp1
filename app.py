@@ -14,9 +14,37 @@ import io
 app = Flask(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
-CLIENTS_FILE = os.path.join(DATA_DIR, 'clients.json')
+CLIENTS_FILE  = os.path.join(DATA_DIR, 'clients.json')
 INVOICES_FILE = os.path.join(DATA_DIR, 'invoices.json')
 PRODUCTS_FILE = os.path.join(DATA_DIR, 'products.json')
+SETTINGS_FILE = os.path.join(DATA_DIR, 'settings.json')
+
+DEFAULT_SETTINGS = {
+    'company_name': 'Šefl s.r.o.',
+    'company_subtitle': 'Pekárna & Cukrárna',
+    'ico': '',
+    'dic': '',
+    'address': '',
+    'email': '',
+    'phone': '',
+    'bank_account': '',   # formát: 123456789/0800
+    'iban': '',           # formát: CZ6508000000001234567890
+    'invoice_prefix': 'INV',
+    'default_due_days': 14,
+    'default_tax_rate': 21,
+}
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE) as f:
+            s = json.load(f)
+        # merge with defaults for any missing keys
+        return {**DEFAULT_SETTINGS, **s}
+    return DEFAULT_SETTINGS.copy()
+
+def save_settings(data):
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
 
 def load_json(path):
     if os.path.exists(path):
@@ -54,6 +82,30 @@ def index():
         'outstanding': sum(i['total'] for i in invoices if i['status'] in ('unpaid', 'overdue')),
     }
     return render_template('index.html', invoices=invoices, client_map=client_map, stats=stats)
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    if request.method == 'POST':
+        s = {
+            'company_name':     request.form.get('company_name', ''),
+            'company_subtitle': request.form.get('company_subtitle', ''),
+            'ico':              request.form.get('ico', ''),
+            'dic':              request.form.get('dic', ''),
+            'address':          request.form.get('address', ''),
+            'email':            request.form.get('email', ''),
+            'phone':            request.form.get('phone', ''),
+            'bank_account':     request.form.get('bank_account', ''),
+            'iban':             request.form.get('iban', '').replace(' ', '').upper(),
+            'invoice_prefix':   request.form.get('invoice_prefix', 'INV'),
+            'default_due_days': int(request.form.get('default_due_days', 14)),
+            'default_tax_rate': float(request.form.get('default_tax_rate', 21)),
+        }
+        save_settings(s)
+        flash('Nastavení bylo uloženo.', 'success')
+        return redirect(url_for('settings'))
+    return render_template('settings.html', s=load_settings())
 
 # ── Products ─────────────────────────────────────────────────────────────────
 
@@ -177,7 +229,7 @@ def new_invoice():
 
         inv = {
             'id': get_next_id(invoices),
-            'invoice_number': f"INV-{get_next_id(invoices):04d}",
+            'invoice_number': f"{load_settings()['invoice_prefix']}-{get_next_id(invoices):04d}",
             'client_id': int(request.form['client_id']),
             'issue_date': request.form['issue_date'],
             'due_date': request.form['due_date'],
@@ -193,7 +245,12 @@ def new_invoice():
         invoices.append(inv)
         save_json(INVOICES_FILE, invoices)
         return redirect(url_for('view_invoice', invoice_id=inv['id']))
-    return render_template('invoice_form.html', clients=clients, invoice=None, today=date.today().isoformat(), products=load_json(PRODUCTS_FILE))
+    s = load_settings()
+    from datetime import timedelta
+    default_due = (date.today() + timedelta(days=s['default_due_days'])).isoformat()
+    return render_template('invoice_form.html', clients=clients, invoice=None,
+                           today=date.today().isoformat(), products=load_json(PRODUCTS_FILE),
+                           settings=s, default_due=default_due)
 
 @app.route('/invoices/<int:invoice_id>')
 def view_invoice(invoice_id):
@@ -243,7 +300,9 @@ def edit_invoice(invoice_id):
         })
         save_json(INVOICES_FILE, invoices)
         return redirect(url_for('view_invoice', invoice_id=invoice_id))
-    return render_template('invoice_form.html', clients=clients, invoice=invoice, today=date.today().isoformat(), products=load_json(PRODUCTS_FILE))
+    return render_template('invoice_form.html', clients=clients, invoice=invoice,
+                           today=date.today().isoformat(), products=load_json(PRODUCTS_FILE),
+                           settings=load_settings(), default_due=invoice.get('due_date',''))
 
 @app.route('/invoices/<int:invoice_id>/status/<status>', methods=['POST'])
 def update_status(invoice_id, status):
@@ -270,12 +329,13 @@ def download_pdf(invoice_id):
         return redirect(url_for('index'))
     clients = load_json(CLIENTS_FILE)
     client = next((c for c in clients if c['id'] == invoice['client_id']), {})
+    s = load_settings()
 
     # Register DejaVu fonts for full Czech character support
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfbase.pdfmetrics import registerFontFamily
-    # Fonts are in the same folder as app.py
+    from reportlab.platypus import Image as RLImage
     FONT_DIR = os.path.dirname(os.path.abspath(__file__))
     try:
         pdfmetrics.registerFont(TTFont('DejaVu',         os.path.join(FONT_DIR, 'DejaVuSans.ttf')))
@@ -287,6 +347,20 @@ def download_pdf(invoice_id):
     except Exception:
         FONT      = 'Helvetica'
         FONT_BOLD = 'Helvetica-Bold'
+
+    # Generate QR code for payment if IBAN is set
+    qr_image = None
+    if s.get('iban'):
+        try:
+            from qr_generator import generate_qr_png
+            spd = (f"SPD*1.0*ACC:{s['iban']}*"
+                   f"AM:{invoice['total']:.2f}*CC:CZK*"
+                   f"MSG:{invoice['invoice_number']}*")
+            qr_png = generate_qr_png(spd, box_size=4, border=2)
+            qr_buf = io.BytesIO(qr_png)
+            qr_image = RLImage(qr_buf, width=1.2*inch, height=1.2*inch)
+        except Exception:
+            qr_image = None
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter,
@@ -313,14 +387,12 @@ def download_pdf(invoice_id):
                                 fontName=FONT_BOLD, alignment=TA_RIGHT)
 
     header_table = Table([
-        [Paragraph('Šefl s.r.o.', company_s),
-         Paragraph('FAKTURA', ParagraphStyle('ft', fontSize=9, textColor=MID_GREY, alignment=TA_RIGHT, fontName='Helvetica-Bold'))],
-        [Paragraph('Pekárna &amp; Cukrárna', tag_s),
+        [Paragraph(s.get('company_name', 'Šefl s.r.o.'), company_s),
+         Paragraph('FAKTURA', ParagraphStyle('ft', fontSize=9, textColor=MID_GREY, alignment=TA_RIGHT, fontName=FONT_BOLD))],
+        [Paragraph(s.get('company_subtitle', ''), tag_s),
          Paragraph(f"<b>{invoice['invoice_number']}</b>", inv_b)],
-        ['',
-         Paragraph(f"Vystaveno: {invoice['issue_date']}", inv_s)],
-        ['',
-         Paragraph(f"Splatnost: {invoice['due_date']}", inv_s)],
+        ['', Paragraph(f"Vystaveno: {invoice['issue_date']}", inv_s)],
+        ['', Paragraph(f"Splatnost: {invoice['due_date']}", inv_s)],
     ], colWidths=[4*inch, 3*inch])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -365,8 +437,19 @@ def download_pdf(invoice_id):
         left_col.append(Paragraph(client['address'], sub_s))
 
     right_col = [Paragraph('DODAVATEL', lbl_s),
-                 Paragraph('Šefl s.r.o.', val_s),
-                 Paragraph('Pekárna &amp; Cukrárna', sub_s)]
+                 Paragraph(s.get('company_name', ''), val_s)]
+    if s.get('company_subtitle'):
+        right_col.append(Paragraph(s['company_subtitle'], sub_s))
+    if s.get('address'):
+        right_col.append(Paragraph(s['address'], sub_s))
+    if s.get('ico'):
+        right_col.append(Paragraph(f"IČO: {s['ico']}", sub_s))
+    if s.get('dic'):
+        right_col.append(Paragraph(f"DIČ: {s['dic']}", sub_s))
+    if s.get('email'):
+        right_col.append(Paragraph(s['email'], sub_s))
+    if s.get('phone'):
+        right_col.append(Paragraph(s['phone'], sub_s))
 
     info_table = Table(
         [[left_col, right_col]],
@@ -454,9 +537,52 @@ def download_pdf(invoice_id):
             f"! UPOZORNĚNÍ: Tato faktura je {delta} {days_str} po splatnosti. "
             f"Žádáme o neprodlené uhrazení.", warn_s))
 
+    # ── PLATEBNÍ ÚDAJE + QR ───────────────────────────────────────────────────
+    if s.get('bank_account') or s.get('iban') or qr_image:
+        story.append(Spacer(1, 0.25*inch))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=RULE_GREY))
+        story.append(Spacer(1, 0.12*inch))
+
+        pay_lbl = ParagraphStyle('plbl', fontSize=7.5, textColor=MID_GREY,
+                                  fontName=FONT_BOLD, leading=12, spaceAfter=4)
+        pay_val = ParagraphStyle('pval', fontSize=9, textColor=BLACK,
+                                  fontName=FONT_BOLD, leading=13)
+        pay_sub = ParagraphStyle('psub', fontSize=8.5, textColor=DARK_GREY,
+                                  fontName=FONT, leading=13)
+
+        pay_left = [Paragraph('PLATEBNÍ ÚDAJE', pay_lbl)]
+        if s.get('bank_account'):
+            pay_left.append(Paragraph(f"Číslo účtu: {s['bank_account']}", pay_val))
+        if s.get('iban'):
+            pay_left.append(Paragraph(f"IBAN: {s['iban']}", pay_sub))
+        pay_left.append(Paragraph(f"Částka: {invoice['total']:.2f} Kč", pay_val))
+        pay_left.append(Paragraph(f"VS: {invoice['invoice_number']}", pay_sub))
+
+        if qr_image:
+            qr_label = ParagraphStyle('qrl', fontSize=7, textColor=MID_GREY,
+                                       fontName=FONT, alignment=TA_CENTER)
+            pay_right = [[qr_image], [Paragraph('Naskenujte pro platbu', qr_label)]]
+            pay_right_cell = pay_right
+        else:
+            pay_right_cell = [[Paragraph('', pay_sub)]]
+
+        pay_table = Table(
+            [[pay_left, pay_right_cell]],
+            colWidths=[4.8*inch, 2.2*inch]
+        )
+        pay_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (1,0), (1,0), 'CENTER'),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
+        story.append(pay_table)
+
     # ── NOTES ─────────────────────────────────────────────────────────────────
     if invoice.get('notes'):
-        story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.2*inch))
         story.append(HRFlowable(width="100%", thickness=0.5, color=RULE_GREY))
         story.append(Spacer(1, 0.1*inch))
         story.append(Paragraph('Poznámky', ParagraphStyle('nl', fontSize=8,
@@ -464,13 +590,18 @@ def download_pdf(invoice_id):
         story.append(Paragraph(invoice['notes'], ParagraphStyle('nb', fontSize=9, textColor=DARK_GREY, fontName=FONT)))
 
     # ── FOOTER ────────────────────────────────────────────────────────────────
-    story.append(Spacer(1, 0.5*inch))
+    story.append(Spacer(1, 0.4*inch))
     story.append(HRFlowable(width="100%", thickness=0.5, color=RULE_GREY))
     story.append(Spacer(1, 0.08*inch))
     story.append(HRFlowable(width="100%", thickness=1.5, color=BLACK))
     story.append(Spacer(1, 0.1*inch))
+    company_line = s.get('company_name', '')
+    if s.get('company_subtitle'):
+        company_line += f"  ·  {s['company_subtitle']}"
+    if s.get('ico'):
+        company_line += f"  ·  IČO: {s['ico']}"
     story.append(Paragraph(
-        'Šefl s.r.o.  ·  Pekárna & Cukrárna  ·  Děkujeme za Vaši důvěru',
+        f"{company_line}  ·  Děkujeme za Vaši důvěru",
         ParagraphStyle('footer', fontSize=8, textColor=MID_GREY, fontName=FONT, alignment=TA_CENTER)))
 
     doc.build(story)

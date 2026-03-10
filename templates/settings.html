@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>⚙️ Nastavení</h1>
+    <p class="text-muted">Údaje o vaší firmě se automaticky zobrazí na každé faktuře a PDF.</p>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<form method="post">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+
+  <!-- Firma -->
+  <div class="card">
+    <div class="card-header"><strong>🏢 Identifikace firmy</strong></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Název firmy</label>
+        <input type="text" name="company_name" class="form-control" value="{{ s.company_name }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Podtitulek (např. Pekárna & Cukrárna)</label>
+        <input type="text" name="company_subtitle" class="form-control" value="{{ s.company_subtitle }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">IČO</label>
+        <input type="text" name="ico" class="form-control" value="{{ s.ico }}" placeholder="12345678">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">DIČ</label>
+        <input type="text" name="dic" class="form-control" value="{{ s.dic }}" placeholder="CZ12345678">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Adresa</label>
+        <textarea name="address" class="form-control" rows="2">{{ s.address }}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="email" name="email" class="form-control" value="{{ s.email }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Telefon</label>
+        <input type="text" name="phone" class="form-control" value="{{ s.phone }}">
+      </div>
+    </div>
+  </div>
+
+  <!-- Platby & faktury -->
+  <div style="display:flex; flex-direction:column; gap:1.5rem;">
+    <div class="card">
+      <div class="card-header"><strong>🏦 Platební údaje</strong></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Číslo účtu</label>
+          <input type="text" name="bank_account" class="form-control" value="{{ s.bank_account }}" placeholder="123456789/0800">
+          <div class="form-text">Ve formátu číslo/kód banky</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">IBAN</label>
+          <input type="text" name="iban" class="form-control" value="{{ s.iban }}" placeholder="CZ6508000000001234567890">
+          <div class="form-text">Vyplňte pro generování QR kódu platby na PDF</div>
+        </div>
+        {% if s.iban %}
+        <div class="alert alert-success py-2 px-3 mb-0" style="font-size:.85rem;">
+          ✅ QR kód platby bude automaticky přidán do každého PDF
+        </div>
+        {% else %}
+        <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.85rem;">
+          ⚠️ Bez IBAN nebude QR kód generován
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><strong>📄 Výchozí hodnoty faktur</strong></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Prefix čísla faktury</label>
+          <input type="text" name="invoice_prefix" class="form-control" value="{{ s.invoice_prefix }}" placeholder="INV">
+          <div class="form-text">Např. INV → INV-0001, FAK → FAK-0001</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Výchozí splatnost (dny)</label>
+          <input type="number" name="default_due_days" class="form-control" value="{{ s.default_due_days }}" min="1" max="365">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Výchozí sazba DPH (%)</label>
+          <select name="default_tax_rate" class="form-select">
+            <option value="0"   {% if s.default_tax_rate == 0   %}selected{% endif %}>0 % (osvobozeno)</option>
+            <option value="10"  {% if s.default_tax_rate == 10  %}selected{% endif %}>10 %</option>
+            <option value="12"  {% if s.default_tax_rate == 12  %}selected{% endif %}>12 %</option>
+            <option value="21"  {% if s.default_tax_rate == 21  %}selected{% endif %}>21 %</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="mt-4 d-flex gap-2">
+  <button type="submit" class="btn btn-primary">💾 Uložit nastavení</button>
+  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Zrušit</a>
+</div>
+</form>
+{% endblock %}
