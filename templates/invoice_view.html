@@ -13,6 +13,9 @@
   </div>
   <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
     <a href="/invoices/{{ invoice.id }}/pdf" class="btn btn-outline">⬇ Stáhnout PDF</a>
+    <form method="post" action="/invoices/{{ invoice.id }}/send">
+      <button class="btn btn-outline" type="submit" title="Odeslat fakturu klientovi e-mailem">📧 Odeslat e-mailem</button>
+    </form>
     <a href="/invoices/edit/{{ invoice.id }}" class="btn btn-outline">✏ Upravit</a>
     {% if invoice.status != 'paid' %}
     <form method="post" action="/invoices/{{ invoice.id }}/status/paid">
@@ -28,6 +31,11 @@
       <button class="btn btn-danger" type="submit">Smazat</button>
     </form>
   </div>
+  {% if invoice.get('last_sent') %}
+  <div style="font-size:.8rem; color:var(--muted); margin-top:.4rem;">
+    📨 Naposledy odesláno: {{ invoice.last_sent[:10] }}
+  </div>
+  {% endif %}
 </div>
 
 {% if invoice.status == 'overdue' %}

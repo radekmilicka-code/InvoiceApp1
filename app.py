@@ -27,11 +27,17 @@ DEFAULT_SETTINGS = {
     'address': '',
     'email': '',
     'phone': '',
-    'bank_account': '',   # formát: 123456789/0800
-    'iban': '',           # formát: CZ6508000000001234567890
+    'bank_account': '',
+    'iban': '',
     'invoice_prefix': 'INV',
     'default_due_days': 14,
     'default_tax_rate': 21,
+    # Email / SMTP
+    'smtp_host': 'smtp.seznam.cz',
+    'smtp_port': 465,
+    'smtp_user': '',
+    'smtp_password': '',
+    'reminder_days': 3,
 }
 
 def load_settings():
@@ -65,6 +71,151 @@ def check_overdue(invoices):
         if inv['status'] == 'unpaid' and inv.get('due_date') and inv['due_date'] < today:
             inv['status'] = 'overdue'
     return invoices
+# ── Email ─────────────────────────────────────────────────────────────────────
+
+import smtplib
+import ssl
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+
+def send_invoice_email(invoice, client, pdf_bytes, subject=None, body=None):
+    """Send invoice PDF to client via SMTP. Returns (ok, error_message)."""
+    s = load_settings()
+    if not s.get('smtp_user') or not s.get('smtp_password'):
+        return False, 'SMTP není nakonfigurováno. Nastavte email v Nastavení.'
+    if not client.get('email'):
+        return False, 'Klient nemá vyplněný e-mail.'
+
+    from_addr = s['smtp_user']
+    to_addr   = client['email']
+    company   = s.get('company_name', 'Fakturace')
+
+    if not subject:
+        subject = f"Faktura {invoice['invoice_number']} — {company}"
+    if not body:
+        body = f"""Dobrý den,
+
+v příloze zasíláme fakturu č. {invoice['invoice_number']} na částku {invoice['total']:.2f} Kč.
+Datum splatnosti: {invoice['due_date']}.
+"""
+        if s.get('bank_account'):
+            body += 'Cislo uctu: ' + s['bank_account'] + chr(10)
+        if s.get('iban'):
+            body += 'IBAN: ' + s['iban'] + chr(10)
+        body += f"""
+Děkujeme za Vaši důvěru.
+
+S pozdravem,
+{company}"""
+        if s.get('phone'):
+            body += f"\nTel: {s['phone']}"
+        if s.get('email'):
+            body += f"\nEmail: {s['email']}"
+
+    msg = MIMEMultipart()
+    msg['From']    = f"{company} <{from_addr}>"
+    msg['To']      = to_addr
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+    # Attach PDF
+    part = MIMEBase('application', 'octet-stream')
+    part.set_payload(pdf_bytes)
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition',
+                    f'attachment; filename="{invoice["invoice_number"]}.pdf"')
+    msg.attach(part)
+
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(s['smtp_host'], int(s['smtp_port']), context=ctx) as server:
+            server.login(s['smtp_user'], s['smtp_password'])
+            server.sendmail(from_addr, to_addr, msg.as_bytes())
+        return True, None
+    except smtplib.SMTPAuthenticationError:
+        return False, 'Chybné přihlašovací údaje k e-mailu.'
+    except smtplib.SMTPException as e:
+        return False, f'Chyba při odesílání: {str(e)}'
+    except Exception as e:
+        return False, f'Neočekávaná chyba: {str(e)}'
+
+
+def send_reminders():
+    """
+    Send overdue reminders for invoices that:
+    - are overdue
+    - have not been reminded yet (or last reminder was > 7 days ago)
+    Returns list of (invoice_number, client_email, ok, error).
+    """
+    s = load_settings()
+    if not s.get('smtp_user') or not s.get('smtp_password'):
+        return []
+
+    invoices = check_overdue(load_json(INVOICES_FILE))
+    save_json(INVOICES_FILE, invoices)
+    clients  = load_json(CLIENTS_FILE)
+    client_map = {c['id']: c for c in clients}
+    results = []
+
+    reminder_days = int(s.get('reminder_days', 3))
+    today = date.today()
+
+    for inv in invoices:
+        if inv['status'] != 'overdue':
+            continue
+        due = date.fromisoformat(inv['due_date'])
+        days_late = (today - due).days
+        if days_late < reminder_days:
+            continue
+
+        # Check if already reminded recently (within 7 days)
+        last_reminded = inv.get('last_reminded')
+        if last_reminded:
+            last_dt = date.fromisoformat(last_reminded)
+            if (today - last_dt).days < 7:
+                continue
+
+        client = client_map.get(inv['client_id'], {})
+        if not client.get('email'):
+            continue
+
+        # Generate PDF
+        try:
+            pdf_bytes = _generate_pdf_bytes(inv, client, s)
+        except Exception:
+            results.append((inv['invoice_number'], client.get('email',''), False, 'Chyba při generování PDF'))
+            continue
+
+        company = s.get('company_name', 'Fakturace')
+        days_str = 'den' if days_late == 1 else ('dny' if days_late < 5 else 'dní')
+        subject = f"Upomínka — faktura {inv['invoice_number']} je {days_late} {days_str} po splatnosti"
+        body = f"""Dobrý den,
+
+dovolujeme si Vás upozornit, že faktura č. {inv['invoice_number']} na částku {inv['total']:.2f} Kč
+je již {days_late} {days_str} po datu splatnosti ({inv['due_date']}).
+
+Prosíme o neprodlené uhrazení.
+"""
+        if s.get('bank_account'):
+            body += f"Číslo účtu: {s['bank_account']}\n"
+        if s.get('iban'):
+            body += f"IBAN: {s['iban']}\n"
+        body += f"""
+S pozdravem,
+{company}"""
+
+        ok, err = send_invoice_email(inv, client, pdf_bytes, subject=subject, body=body)
+        results.append((inv['invoice_number'], client['email'], ok, err))
+
+        if ok:
+            inv['last_reminded'] = today.isoformat()
+
+    save_json(INVOICES_FILE, invoices)
+    return results
+
+
 
 @app.route('/')
 def index():
@@ -101,6 +252,11 @@ def settings():
             'invoice_prefix':   request.form.get('invoice_prefix', 'INV'),
             'default_due_days': int(request.form.get('default_due_days', 14)),
             'default_tax_rate': float(request.form.get('default_tax_rate', 21)),
+            'smtp_host':        request.form.get('smtp_host', 'smtp.seznam.cz'),
+            'smtp_port':        int(request.form.get('smtp_port', 465)),
+            'smtp_user':        request.form.get('smtp_user', ''),
+            'smtp_password':    request.form.get('smtp_password', ''),
+            'reminder_days':    int(request.form.get('reminder_days', 3)),
         }
         save_settings(s)
         flash('Nastavení bylo uloženo.', 'success')
@@ -321,15 +477,14 @@ def delete_invoice(invoice_id):
     save_json(INVOICES_FILE, invoices)
     return redirect(url_for('index'))
 
-@app.route('/invoices/<int:invoice_id>/pdf')
-def download_pdf(invoice_id):
-    invoices = load_json(INVOICES_FILE)
-    invoice = next((i for i in invoices if i['id'] == invoice_id), None)
-    if not invoice:
-        return redirect(url_for('index'))
-    clients = load_json(CLIENTS_FILE)
-    client = next((c for c in clients if c['id'] == invoice['client_id']), {})
-    s = load_settings()
+def _build_pdf(invoice, client, s=None):
+    if s is None:
+        s = load_settings()
+
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase.pdfmetrics import registerFontFamily
+    from reportlab.platypus import Image as RLImage
 
     # Register DejaVu fonts for full Czech character support
     from reportlab.pdfbase import pdfmetrics
@@ -607,7 +762,65 @@ def download_pdf(invoice_id):
     doc.build(story)
     buf.seek(0)
     filename = f"{invoice['invoice_number']}.pdf"
-    return send_file(buf, as_attachment=True, download_name=filename, mimetype='application/pdf')
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@app.route("/invoices/<int:invoice_id>/pdf")
+def download_pdf(invoice_id):
+    invoices = load_json(INVOICES_FILE)
+    invoice = next((i for i in invoices if i["id"] == invoice_id), None)
+    if not invoice:
+        return redirect(url_for("index"))
+    clients = load_json(CLIENTS_FILE)
+    client = next((c for c in clients if c["id"] == invoice["client_id"]), {})
+    pdf = _build_pdf(invoice=invoice, client=client, s=load_settings())
+    return send_file(io.BytesIO(pdf), as_attachment=True,
+                     download_name=f"{invoice['invoice_number']}.pdf",
+                     mimetype="application/pdf")
+
+
+@app.route("/invoices/<int:invoice_id>/send", methods=["POST"])
+def send_invoice(invoice_id):
+    invoices = load_json(INVOICES_FILE)
+    invoice = next((i for i in invoices if i["id"] == invoice_id), None)
+    if not invoice:
+        return redirect(url_for("index"))
+    clients = load_json(CLIENTS_FILE)
+    client = next((c for c in clients if c["id"] == invoice["client_id"]), {})
+    s = load_settings()
+    try:
+        pdf = _build_pdf(invoice=invoice, client=client, s=s)
+    except Exception as e:
+        flash(f"Chyba pri generovani PDF: {e}", "error")
+        return redirect(url_for("view_invoice", invoice_id=invoice_id))
+    ok, err = send_invoice_email(invoice, client, pdf)
+    if ok:
+        for inv in invoices:
+            if inv["id"] == invoice_id:
+                inv["last_sent"] = datetime.now().isoformat()
+        save_json(INVOICES_FILE, invoices)
+        flash(f"Faktura odeslana na {client.get('email', '')}", "success")
+    else:
+        flash(f"Nepodarilo se odeslat: {err}", "error")
+    return redirect(url_for("view_invoice", invoice_id=invoice_id))
+
+
+@app.route("/reminders/send", methods=["POST"])
+def send_reminders_route():
+    results = send_reminders()
+    if not results:
+        flash("Zadne faktury k upominani nebo SMTP neni nastaveno.", "warning")
+    else:
+        ok_count = sum(1 for _, _, ok, _ in results if ok)
+        err_count = len(results) - ok_count
+        if ok_count:
+            flash(f"Odeslano {ok_count} upominek.", "success")
+        if err_count:
+            errs = "; ".join(f"{inv}: {e}" for inv, _, ok, e in results if not ok)
+            flash(f"Chyby ({err_count}): {errs}", "error")
+    return redirect(url_for("index"))
+
 
 app.secret_key = 'invoice-app-secret'
 

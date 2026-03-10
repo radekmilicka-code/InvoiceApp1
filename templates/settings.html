@@ -105,6 +105,49 @@
 
 </div>
 
+<!-- Email / SMTP -->
+<div class="card mt-4">
+  <div class="card-header"><strong>📧 Odesílání e-mailů</strong></div>
+  <div class="card-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;" class="mb-3">
+      <div>
+        <label class="form-label">SMTP server</label>
+        <input type="text" name="smtp_host" class="form-control" value="{{ s.smtp_host }}" placeholder="smtp.seznam.cz">
+      </div>
+      <div>
+        <label class="form-label">Port</label>
+        <input type="number" name="smtp_port" class="form-control" value="{{ s.smtp_port }}" placeholder="465">
+        <div class="form-text">465 = SSL (Seznam), 587 = TLS</div>
+      </div>
+      <div>
+        <label class="form-label">Upomínky po (dní)</label>
+        <input type="number" name="reminder_days" class="form-control" value="{{ s.reminder_days }}" min="1" max="60">
+        <div class="form-text">Počet dní po splatnosti před upomínkou</div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+      <div>
+        <label class="form-label">E-mail (přihlášení)</label>
+        <input type="email" name="smtp_user" class="form-control" value="{{ s.smtp_user }}" placeholder="fakturace@firma.cz">
+      </div>
+      <div>
+        <label class="form-label">Heslo</label>
+        <input type="password" name="smtp_password" class="form-control" value="{{ s.smtp_password }}" placeholder="••••••••">
+        <div class="form-text">Pro Seznam.cz použijte heslo aplikace z nastavení účtu</div>
+      </div>
+    </div>
+    {% if s.smtp_user %}
+    <div class="alert alert-success py-2 px-3 mt-3 mb-0" style="font-size:.85rem;">
+      ✅ E-mail nakonfigurován: {{ s.smtp_user }}
+    </div>
+    {% else %}
+    <div class="alert alert-warning py-2 px-3 mt-3 mb-0" style="font-size:.85rem;">
+      ⚠️ Bez vyplnění e-mailu a hesla nebude odesílání fungovat
+    </div>
+    {% endif %}
+  </div>
+</div>
+
 <div class="mt-4 d-flex gap-2">
   <button type="submit" class="btn btn-primary">💾 Uložit nastavení</button>
   <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Zrušit</a>
