@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ 'Upravit klienta' if client else 'Přidat klienta' }}</h1>
+  <a href="/clients" class="btn btn-outline">← Zpět</a>
+</div>
+<div class="card" style="max-width:560px;">
+  <form method="post">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Celé jméno *</label>
+        <input name="name" required value="{{ client.name if client else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Firma</label>
+        <input name="company" value="{{ client.company if client else '' }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>E-mail *</label>
+        <input type="email" name="email" required value="{{ client.email if client else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Telefon</label>
+        <input name="phone" value="{{ client.phone if client else '' }}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Adresa</label>
+      <textarea name="address">{{ client.address if client else '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if client else 'Přidat klienta' }}</button>
+  </form>
+</div>
+{% endblock %}

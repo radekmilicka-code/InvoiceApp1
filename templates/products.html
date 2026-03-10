@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>Produkty a služby</h1>
+  <a href="/products/add" class="btn btn-primary">+ Přidat produkt</a>
+</div>
+
+{% set categories = products | map(attribute='category') | select | unique | list %}
+{% if categories %}
+<div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem;">
+  <button class="btn btn-outline btn-sm filter-btn active" data-cat="all">Vše</button>
+  {% for cat in categories %}
+  <button class="btn btn-outline btn-sm filter-btn" data-cat="{{ cat }}">{{ cat }}</button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <table id="productTable">
+    <thead>
+      <tr>
+        <th>Název</th>
+        <th>Kategorie</th>
+        <th>Popis</th>
+        <th>Jednotka</th>
+        <th style="text-align:right">Cena</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr data-cat="{{ p.category }}">
+        <td><strong>{{ p.name }}</strong></td>
+        <td>
+          {% if p.category %}
+          <span style="background:var(--accent-light); color:var(--accent); padding:2px 8px; border-radius:20px; font-size:0.75rem; font-weight:600;">{{ p.category }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td style="color:var(--muted); font-size:0.85rem;">{{ p.description or '—' }}</td>
+        <td style="color:var(--muted);">{{ p.unit or '—' }}</td>
+        <td style="text-align:right; font-weight:700; color:var(--accent);">{{ "%.2f"|format(p.price) }} Kč</td>
+        <td style="display:flex; gap:0.5rem; justify-content:flex-end;">
+          <a href="/products/edit/{{ p.id }}" class="btn btn-outline btn-sm">Upravit</a>
+          <form method="post" action="/products/delete/{{ p.id }}" onsubmit="return confirm('Smazat tento produkt?')">
+            <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" style="text-align:center; color:var(--muted); padding:2rem;">
+          Žádné produkty. <a href="/products/add">Přidejte první produkt →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const cat = btn.dataset.cat;
+    document.querySelectorAll('#productTable tbody tr[data-cat]').forEach(row => {
+      row.style.display = (cat === 'all' || row.dataset.cat === cat) ? '' : 'none';
+    });
+  });
+});
+</script>
+<style>
+.filter-btn.active { background: var(--accent); color: white; }
+</style>
+{% endblock %}

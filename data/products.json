@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "name": "Rohlik",
+    "description": "",
+    "price": 2.0,
+    "unit": "60g",
+    "category": "Pecivo bezne"
+  },
+  {
+    "id": 2,
+    "name": "Kol\u00e1\u010d svatebn\u00ed 12cm",
+    "description": "",
+    "price": 56.0,
+    "unit": "",
+    "category": "Sladk\u00e9 "
+  }
+]

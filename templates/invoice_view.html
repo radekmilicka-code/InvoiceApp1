@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ invoice.invoice_number }}
+      <span class="badge badge-{{ invoice.status }}" style="font-size:0.85rem; vertical-align:middle; margin-left:8px;">
+        {% if invoice.status == 'paid' %}zaplaceno
+        {% elif invoice.status == 'unpaid' %}nezaplaceno
+        {% elif invoice.status == 'overdue' %}po splatnosti
+        {% else %}{{ invoice.status }}{% endif %}
+      </span>
+    </h1>
+  </div>
+  <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+    <a href="/invoices/{{ invoice.id }}/pdf" class="btn btn-outline">⬇ Stáhnout PDF</a>
+    <a href="/invoices/edit/{{ invoice.id }}" class="btn btn-outline">✏ Upravit</a>
+    {% if invoice.status != 'paid' %}
+    <form method="post" action="/invoices/{{ invoice.id }}/status/paid">
+      <button class="btn btn-success" type="submit">✓ Označit jako zaplaceno</button>
+    </form>
+    {% endif %}
+    {% if invoice.status == 'paid' %}
+    <form method="post" action="/invoices/{{ invoice.id }}/status/unpaid">
+      <button class="btn btn-outline" type="submit">↺ Označit jako nezaplaceno</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/invoices/delete/{{ invoice.id }}" onsubmit="return confirm('Trvale smazat tuto fakturu?')">
+      <button class="btn btn-danger" type="submit">Smazat</button>
+    </form>
+  </div>
+</div>
+
+{% if invoice.status == 'overdue' %}
+<div class="alert alert-danger">
+  ⚠️ <strong>PO SPLATNOSTI:</strong> Tato faktura byla splatná {{ invoice.due_date }} a je <strong>{{ overdue_days }} den{{ '' if overdue_days == 1 else 'y' if overdue_days < 5 else 'í' }} po splatnosti</strong>.
+  Požadujeme okamžitou úhradu. Kontaktujte prosím {{ client.name }} na {{ client.email }}.
+</div>
+{% endif %}
+
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+  <div class="card">
+    <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:0.75rem;">Fakturovat</div>
+    <div style="font-size:1.1rem; font-weight:700;">{{ client.name }}</div>
+    {% if client.company %}<div style="color:var(--muted);">{{ client.company }}</div>{% endif %}
+    {% if client.email %}<div>{{ client.email }}</div>{% endif %}
+    {% if client.phone %}<div>{{ client.phone }}</div>{% endif %}
+    {% if client.address %}<div style="color:var(--muted); margin-top:4px; font-size:0.85rem;">{{ client.address }}</div>{% endif %}
+  </div>
+  <div class="card">
+    <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:0.75rem;">Údaje faktury</div>
+    <table style="width:100%;">
+      <tr><td style="color:var(--muted); padding:4px 0; font-size:0.85rem;">Číslo faktury</td><td style="font-weight:600; text-align:right;">{{ invoice.invoice_number }}</td></tr>
+      <tr><td style="color:var(--muted); padding:4px 0; font-size:0.85rem;">Datum vystavení</td><td style="text-align:right;">{{ invoice.issue_date }}</td></tr>
+      <tr><td style="color:var(--muted); padding:4px 0; font-size:0.85rem;">Datum splatnosti</td>
+        <td style="text-align:right; {% if invoice.status == 'overdue' %}color:var(--danger); font-weight:600;{% endif %}">{{ invoice.due_date }}</td></tr>
+      {% if invoice.get('paid_at') %}<tr><td style="color:var(--muted); padding:4px 0; font-size:0.85rem;">Datum úhrady</td><td style="text-align:right; color:var(--success);">{{ invoice.paid_at[:10] }}</td></tr>{% endif %}
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Popis</th>
+        <th style="text-align:right;">Množství</th>
+        <th style="text-align:right;">Jednotková cena</th>
+        <th style="text-align:right;">Celkem</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in invoice['items'] %}
+      <tr>
+        <td>{{ it.name }}</td>
+        <td style="text-align:right;">{{ it.qty }}</td>
+        <td style="text-align:right;">{{ "%.2f"|format(it.price) }} Kč</td>
+        <td style="text-align:right; font-weight:600;">{{ "%.2f"|format(it.subtotal) }} Kč</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="3" style="text-align:right; color:var(--muted); padding-top:1rem;">Mezisoučet</td>
+          <td style="text-align:right; font-weight:600; padding-top:1rem;">{{ "%.2f"|format(invoice.subtotal) }} Kč</td></tr>
+      <tr><td colspan="3" style="text-align:right; color:var(--muted);">DPH ({{ invoice.tax_rate }}%)</td>
+          <td style="text-align:right;">{{ "%.2f"|format(invoice.tax_amount) }} Kč</td></tr>
+      <tr><td colspan="3" style="text-align:right; font-size:1.1rem; font-weight:700; color:var(--accent); padding-top:0.5rem;">Celkem k úhradě</td>
+          <td style="text-align:right; font-size:1.1rem; font-weight:700; color:var(--accent);">{{ "%.2f"|format(invoice.total) }} Kč</td></tr>
+    </tfoot>
+  </table>
+
+  {% if invoice.notes %}
+  <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border);">
+    <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:0.4rem;">Poznámky</div>
+    <p style="font-size:0.9rem; color:var(--muted);">{{ invoice.notes }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

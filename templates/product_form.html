@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ 'Upravit produkt' if product else 'Přidat produkt' }}</h1>
+  <a href="/products" class="btn btn-outline">← Zpět</a>
+</div>
+<div class="card" style="max-width:560px;">
+  <form method="post">
+    <div class="form-group">
+      <label>Název produktu / služby *</label>
+      <input name="name" required value="{{ product.name if product else '' }}" placeholder="např. Webdesign, Konzultační hodina">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Výchozí cena (Kč) *</label>
+        <input type="number" name="price" min="0" step="0.01" required
+               value="{{ product.price if product else '' }}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>Jednotka</label>
+        <input name="unit" value="{{ product.unit if product else '' }}" placeholder="např. hodina, kus, strana">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Kategorie</label>
+      <input name="category" value="{{ product.category if product else '' }}" placeholder="např. Design, Vývoj, Konzultace">
+    </div>
+    <div class="form-group">
+      <label>Popis</label>
+      <textarea name="description" placeholder="Volitelný krátký popis">{{ product.description if product else '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if product else 'Přidat produkt' }}</button>
+  </form>
+</div>
+{% endblock %}
