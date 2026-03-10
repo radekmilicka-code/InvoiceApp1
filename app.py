@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash, session
 import json
 import os
 import csv
@@ -12,6 +12,38 @@ from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 import io
 
 app = Flask(__name__)
+
+# ── Přihlášení ────────────────────────────────────────────────────────────────
+
+from functools import wraps
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        app_password = os.environ.get('APP_PASSWORD', 'admin')
+        if password == app_password:
+            session['logged_in'] = True
+            next_url = request.form.get('next') or url_for('index')
+            return redirect(next_url)
+        error = 'Špatné heslo.'
+    return render_template('login.html', error=error, next=request.args.get('next', ''))
+
+@app.route('/logout', methods=['POST'])
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 # Railway/Docker: use /app/data if running in container, otherwise local data/
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), 'data'))
@@ -220,6 +252,7 @@ S pozdravem,
 
 
 @app.route('/')
+@login_required
 def index():
     invoices = check_overdue(load_json(INVOICES_FILE))
     save_json(INVOICES_FILE, invoices)
@@ -239,6 +272,7 @@ def index():
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 @app.route('/settings', methods=['GET', 'POST'])
+@login_required
 def settings():
     if request.method == 'POST':
         s = {
@@ -268,10 +302,12 @@ def settings():
 # ── Products ─────────────────────────────────────────────────────────────────
 
 @app.route('/products')
+@login_required
 def products():
     return render_template('products.html', products=load_json(PRODUCTS_FILE))
 
 @app.route('/products/add', methods=['GET', 'POST'])
+@login_required
 def add_product():
     if request.method == 'POST':
         products = load_json(PRODUCTS_FILE)
@@ -289,6 +325,7 @@ def add_product():
     return render_template('product_form.html', product=None)
 
 @app.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
+@login_required
 def edit_product(product_id):
     products = load_json(PRODUCTS_FILE)
     product = next((p for p in products if p['id'] == product_id), None)
@@ -307,22 +344,26 @@ def edit_product(product_id):
     return render_template('product_form.html', product=product)
 
 @app.route('/products/delete/<int:product_id>', methods=['POST'])
+@login_required
 def delete_product(product_id):
     products = [p for p in load_json(PRODUCTS_FILE) if p['id'] != product_id]
     save_json(PRODUCTS_FILE, products)
     return redirect(url_for('products'))
 
 @app.route('/api/products')
+@login_required
 def api_products():
     return jsonify(load_json(PRODUCTS_FILE))
 
 # ── Clients ──────────────────────────────────────────────────────────────────
 
 @app.route('/clients')
+@login_required
 def clients():
     return render_template('clients.html', clients=load_json(CLIENTS_FILE))
 
 @app.route('/clients/add', methods=['GET', 'POST'])
+@login_required
 def add_client():
     if request.method == 'POST':
         clients = load_json(CLIENTS_FILE)
@@ -340,6 +381,7 @@ def add_client():
     return render_template('client_form.html', client=None)
 
 @app.route('/clients/edit/<int:client_id>', methods=['GET', 'POST'])
+@login_required
 def edit_client(client_id):
     clients = load_json(CLIENTS_FILE)
     client = next((c for c in clients if c['id'] == client_id), None)
@@ -358,6 +400,7 @@ def edit_client(client_id):
     return render_template('client_form.html', client=client)
 
 @app.route('/clients/delete/<int:client_id>', methods=['POST'])
+@login_required
 def delete_client(client_id):
     clients = [c for c in load_json(CLIENTS_FILE) if c['id'] != client_id]
     save_json(CLIENTS_FILE, clients)
@@ -366,6 +409,7 @@ def delete_client(client_id):
 # ── Invoices ─────────────────────────────────────────────────────────────────
 
 @app.route('/invoices/new', methods=['GET', 'POST'])
+@login_required
 def new_invoice():
     clients = load_json(CLIENTS_FILE)
     if request.method == 'POST':
@@ -411,6 +455,7 @@ def new_invoice():
                            settings=s, default_due=default_due)
 
 @app.route('/invoices/<int:invoice_id>')
+@login_required
 def view_invoice(invoice_id):
     invoices = check_overdue(load_json(INVOICES_FILE))
     save_json(INVOICES_FILE, invoices)
@@ -426,6 +471,7 @@ def view_invoice(invoice_id):
     return render_template('invoice_view.html', invoice=invoice, client=client, overdue_days=overdue_days)
 
 @app.route('/invoices/edit/<int:invoice_id>', methods=['GET', 'POST'])
+@login_required
 def edit_invoice(invoice_id):
     invoices = load_json(INVOICES_FILE)
     invoice = next((i for i in invoices if i['id'] == invoice_id), None)
@@ -463,6 +509,7 @@ def edit_invoice(invoice_id):
                            settings=load_settings(), default_due=invoice.get('due_date',''))
 
 @app.route('/invoices/<int:invoice_id>/status/<status>', methods=['POST'])
+@login_required
 def update_status(invoice_id, status):
     invoices = load_json(INVOICES_FILE)
     for inv in invoices:
@@ -474,6 +521,7 @@ def update_status(invoice_id, status):
     return redirect(url_for('view_invoice', invoice_id=invoice_id))
 
 @app.route('/invoices/delete/<int:invoice_id>', methods=['POST'])
+@login_required
 def delete_invoice(invoice_id):
     invoices = [i for i in load_json(INVOICES_FILE) if i['id'] != invoice_id]
     save_json(INVOICES_FILE, invoices)
@@ -769,6 +817,7 @@ def _build_pdf(invoice, client, s=None):
 
 
 @app.route("/invoices/<int:invoice_id>/pdf")
+@login_required
 def download_pdf(invoice_id):
     invoices = load_json(INVOICES_FILE)
     invoice = next((i for i in invoices if i["id"] == invoice_id), None)
@@ -783,6 +832,7 @@ def download_pdf(invoice_id):
 
 
 @app.route("/invoices/<int:invoice_id>/send", methods=["POST"])
+@login_required
 def send_invoice(invoice_id):
     invoices = load_json(INVOICES_FILE)
     invoice = next((i for i in invoices if i["id"] == invoice_id), None)
@@ -809,6 +859,7 @@ def send_invoice(invoice_id):
 
 
 @app.route("/reminders/send", methods=["POST"])
+@login_required
 def send_reminders_route():
     results = send_reminders()
     if not results:
@@ -829,6 +880,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'invoice-app-secret-change-in-prod
 # ── Export / Import ───────────────────────────────────────────────────────────
 
 @app.route('/export/invoices/csv')
+@login_required
 def export_invoices_csv():
     invoices = load_json(INVOICES_FILE)
     clients = load_json(CLIENTS_FILE)
@@ -866,6 +918,7 @@ def export_invoices_csv():
 
 
 @app.route('/export/clients/csv')
+@login_required
 def export_clients_csv():
     clients = load_json(CLIENTS_FILE)
     buf = io.StringIO()
@@ -883,6 +936,7 @@ def export_clients_csv():
 
 
 @app.route('/import/clients/csv', methods=['POST'])
+@login_required
 def import_clients_csv():
     file = request.files.get('csv_file')
     if not file or not file.filename.endswith('.csv'):
