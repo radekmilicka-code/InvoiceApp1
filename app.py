@@ -230,7 +230,7 @@ def send_reminders():
 dovolujeme si Vás upozornit, že faktura č. {inv['invoice_number']} na částku {inv['total']:.2f} Kč
 je již {days_late} {days_str} po datu splatnosti ({inv['due_date']}).
 
-Prosíme o neprodlené uhrazení.
+Prosíme Vás o neprodlené uhrazení.
 """
         if s.get('bank_account'):
             body += f"Číslo účtu: {s['bank_account']}\n"
