@@ -13,7 +13,9 @@ import io
 
 app = Flask(__name__)
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+# Railway/Docker: use /app/data if running in container, otherwise local data/
+DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), 'data'))
+os.makedirs(DATA_DIR, exist_ok=True)
 CLIENTS_FILE  = os.path.join(DATA_DIR, 'clients.json')
 INVOICES_FILE = os.path.join(DATA_DIR, 'invoices.json')
 PRODUCTS_FILE = os.path.join(DATA_DIR, 'products.json')
@@ -822,7 +824,7 @@ def send_reminders_route():
     return redirect(url_for("index"))
 
 
-app.secret_key = 'invoice-app-secret'
+app.secret_key = os.environ.get('SECRET_KEY', 'invoice-app-secret-change-in-production')
 
 # ── Export / Import ───────────────────────────────────────────────────────────
 

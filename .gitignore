@@ -2,33 +2,25 @@
 __pycache__/
 *.py[cod]
 *.pyo
-*.pyd
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
 .eggs/
 
 # Virtual environments
 venv/
 .venv/
 env/
-.env
 
-# Flask / app data (don't commit real business data)
+# Sensitive data — NEVER commit real business data
 data/invoices.json
 data/clients.json
 data/settings.json
 
-# Keep sample data
+# Keep sample product catalog
 !data/products.json
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
 
 # OS
 .DS_Store
