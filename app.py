@@ -414,14 +414,21 @@ def clients():
 @login_required
 def add_client():
     if request.method == 'POST':
-        create_client(
-            name=request.form['name'],
-            company=request.form.get('company', ''),
-            email=request.form.get('email', ''),
-            phone=request.form.get('phone', ''),
-            address=request.form.get('address', ''),
-        )
-        return redirect(url_for('clients'))
+        try:
+            create_client(
+                name=request.form['name'],
+                company=request.form.get('company', ''),
+                email=request.form.get('email', ''),
+                phone=request.form.get('phone', ''),
+                address=request.form.get('address', ''),
+            )
+            return redirect(url_for('clients'))
+        except Exception as e:
+            if 'UNIQUE' in str(e):
+                flash(f"Klient s e-mailem {request.form.get('email')} již existuje.", 'error')
+            else:
+                flash(f'Chyba při ukládání: {str(e)}', 'error')
+            return render_template('client_form.html', client=request.form)
     return render_template('client_form.html', client=None)
 
 @app.route('/clients/edit/<int:client_id>', methods=['GET', 'POST'])
@@ -431,15 +438,23 @@ def edit_client(client_id):
     if not client:
         return redirect(url_for('clients'))
     if request.method == 'POST':
-        update_client(
-            client_id,
-            name=request.form['name'],
-            company=request.form.get('company', ''),
-            email=request.form.get('email', ''),
-            phone=request.form.get('phone', ''),
-            address=request.form.get('address', ''),
-        )
-        return redirect(url_for('clients'))
+        try:
+            update_client(
+                client_id,
+                name=request.form['name'],
+                company=request.form.get('company', ''),
+                email=request.form.get('email', ''),
+                phone=request.form.get('phone', ''),
+                address=request.form.get('address', ''),
+            )
+            return redirect(url_for('clients'))
+        except Exception as e:
+            if 'UNIQUE' in str(e):
+                flash(f"Jiný klient s e-mailem {request.form.get('email')} již existuje.", 'error')
+            else:
+                flash(f'Chyba při ukládání: {str(e)}', 'error')
+            merged = dict(client); merged.update(request.form)
+            return render_template('client_form.html', client=merged)
     return render_template('client_form.html', client=client)
 
 @app.route('/clients/delete/<int:client_id>', methods=['POST'])

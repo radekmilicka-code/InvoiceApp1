@@ -82,10 +82,12 @@ def get_client(client_id):
 
 
 def create_client(name, company=None, email=None, phone=None, address=None):
+    # Store empty strings as None so UNIQUE constraint allows multiple clients without email
+    email = email.strip() or None if email else None
     with get_db() as conn:
         cur = conn.execute(
             'INSERT INTO clients (name, company, email, phone, address) VALUES (?,?,?,?,?)',
-            (name, company, email, phone, address)
+            (name, company or None, email, phone or None, address or None)
         )
         return get_client(cur.lastrowid)
 
