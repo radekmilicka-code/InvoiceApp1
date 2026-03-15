@@ -126,4 +126,36 @@
   <button type="submit" class="btn btn-primary">Uložit nastavení</button>
 </div>
 </form>
+
+<!-- Záloha databáze -->
+<div class="card" style="margin-top:1.25rem; border-color:#e0e7ff;">
+  <div class="card-header">
+    <div class="card-title">Záloha databáze</div>
+  </div>
+  <div class="alert alert-info" style="font-size:0.8rem; margin-bottom:1.25rem;">
+    💡 Stáhněte zálohu <strong>před každým větším updatem</strong>. Záloha obsahuje všechna data — faktury, klienty, produkty, nastavení.
+  </div>
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+    <div style="flex:1; min-width:220px;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">Stáhnout zálohu</div>
+      <p style="font-size:0.82rem; color:var(--muted); margin-bottom:0.75rem; line-height:1.5;">Kompletní SQL dump databáze. Lze použít pro obnovu nebo přesun na jiný server.</p>
+      <a href="/backup/download" class="btn btn-outline">⬇ Stáhnout zálohu (.sql)</a>
+    </div>
+    <div style="width:1px; background:var(--border);"></div>
+    <div style="flex:1; min-width:220px;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">Obnovit ze zálohy</div>
+      <p style="font-size:0.82rem; color:var(--muted); margin-bottom:0.75rem; line-height:1.5;">
+        <strong style="color:var(--red);">⚠ Přepíše všechna aktuální data!</strong> Použijte pouze pro obnovu po havárii.
+      </p>
+      <form method="post" action="/backup/restore" enctype="multipart/form-data"
+            onsubmit="return confirm('Opravdu chcete přepsat všechna data zálohou? Tato akce je nevratná.')">
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <input type="file" name="backup_file" accept=".sql" required
+                 style="font-size:0.82rem; padding:0.4rem; border:1.5px solid var(--border); border-radius:8px; background:white; flex:1; min-width:150px;">
+          <button type="submit" class="btn btn-danger btn-sm">Obnovit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

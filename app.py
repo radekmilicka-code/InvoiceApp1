@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash, session
+import sqlite3
 from functools import wraps
 import os
 import csv
@@ -15,7 +16,7 @@ from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 
 # ── SQLite database layer (replaces all JSON file functions) ──────────────────
 from database import (
-    init_db,
+    init_db, backup_db,
     get_all_clients, get_client, create_client, update_client, delete_client,
     get_all_products, get_product, create_product, update_product, delete_product,
     get_all_invoices, get_invoice, create_invoice, update_invoice, delete_invoice,
@@ -348,6 +349,46 @@ def settings():
         flash('Nastavení bylo uloženo.', 'success')
         return redirect(url_for('settings'))
     return render_template('settings.html', s=load_settings())
+
+
+# ── Backup & DB info ─────────────────────────────────────────────────────────
+
+@app.route('/backup/download')
+@login_required
+def backup_download():
+    """Download a full SQL dump of the database — safe to run anytime."""
+    try:
+        sql_bytes = backup_db()
+        filename = f"fakturace_backup_{date.today().isoformat()}.sql"
+        return send_file(
+            io.BytesIO(sql_bytes),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='text/plain'
+        )
+    except Exception as e:
+        flash(f'Chyba při záloze: {str(e)}', 'error')
+        return redirect(url_for('settings'))
+
+
+@app.route('/backup/restore', methods=['POST'])
+@login_required
+def backup_restore():
+    """Restore database from an uploaded .sql dump file."""
+    file = request.files.get('backup_file')
+    if not file or not file.filename.endswith('.sql'):
+        flash('Nahrajte platný .sql soubor ze zálohy.', 'error')
+        return redirect(url_for('settings'))
+    try:
+        import database as db_module
+        sql = file.read().decode('utf-8')
+        conn = sqlite3.connect(db_module.DB_PATH)
+        conn.executescript(sql)
+        conn.close()
+        flash('Záloha byla úspěšně obnovena.', 'success')
+    except Exception as e:
+        flash(f'Chyba při obnově zálohy: {str(e)}', 'error')
+    return redirect(url_for('settings'))
 
 
 # ── Products ──────────────────────────────────────────────────────────────────

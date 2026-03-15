@@ -43,13 +43,52 @@ def get_db():
         conn.close()
 
 
+def _run_migrations(conn):
+    """
+    Safe schema migrations — run on every startup.
+    Each ALTER TABLE is tried individually; if the column already exists SQLite
+    raises an error which we silently ignore, so this is always safe to run.
+    Add new lines here whenever you change the schema in the future.
+    """
+    migrations = [
+        # Format: plain SQL strings, one per schema change
+        # Example: "ALTER TABLE clients ADD COLUMN ico TEXT",
+        # ── v1.1 ──────────────────────────────────────────
+        # (no migrations yet — add future ones here)
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass  # column/index already exists — safe to ignore
+
+
 def init_db():
-    """Create tables if they don't exist. Safe to call on every startup."""
+    """Create tables + run migrations. Safe to call on every startup."""
     if not os.path.exists(SCHEMA_PATH):
         raise FileNotFoundError(f'schema.sql not found at {SCHEMA_PATH}')
     with get_db() as conn:
         with open(SCHEMA_PATH) as f:
             conn.executescript(f.read())
+        _run_migrations(conn)
+
+
+def backup_db():
+    """
+    Returns the raw bytes of the database file for download.
+    Uses SQLite online backup API — safe even while the DB is in use.
+    """
+    import io
+    src = sqlite3.connect(DB_PATH)
+    dst = sqlite3.connect(':memory:')
+    src.backup(dst)
+    src.close()
+    buf = io.BytesIO()
+    for line in dst.iterdump():
+        buf.write((line + "\n").encode("utf-8"))
+    dst.close()
+    buf.seek(0)
+    return buf.read()
 
 
 def init_app(app):
