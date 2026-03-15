@@ -1,16 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
-  <h1>Přehled</h1>
-  <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+  <div>
+    <h1>Přehled</h1>
+    <div class="page-desc">Přehled všech faktur a jejich stavů</div>
+  </div>
+  <div class="page-actions">
     <a href="/export/invoices/csv" class="btn btn-outline">⬇ Export CSV</a>
     <form method="post" action="/reminders/send" style="margin:0;">
-      <button type="submit" class="btn btn-outline" title="Odeslat upomínky všem klientům s fakturami po splatnosti">🔔 Odeslat upomínky</button>
+      <button type="submit" class="btn btn-outline" title="Odeslat upomínky klientům po splatnosti">🔔 Upomínky</button>
     </form>
-    <a href="/invoices/new" class="btn btn-primary">+ Nová faktura</a>
   </div>
 </div>
 
+<!-- Stats -->
 <div class="stats-grid">
   <div class="stat-card stat-clickable" data-filter="all">
     <div class="label">Celkem faktur</div>
@@ -18,66 +22,67 @@
   </div>
   <div class="stat-card stat-clickable" data-filter="paid">
     <div class="label">Zaplaceno</div>
-    <div class="value" style="color: #16A34A">{{ stats.paid }}</div>
+    <div class="value" style="color:var(--green)">{{ stats.paid }}</div>
   </div>
   <div class="stat-card stat-clickable" data-filter="unpaid">
-    <div class="label">Nezaplaceno</div>
-    <div class="value" style="color: #D97706">{{ stats.unpaid }}</div>
+    <div class="label">Čeká na platbu</div>
+    <div class="value" style="color:var(--amber)">{{ stats.unpaid }}</div>
   </div>
   <div class="stat-card stat-clickable" data-filter="overdue">
     <div class="label">Po splatnosti</div>
-    <div class="value" style="color: #DC2626">{{ stats.overdue }}</div>
+    <div class="value" style="color:var(--red)">{{ stats.overdue }}</div>
   </div>
   <div class="stat-card">
     <div class="label">Přijaté platby</div>
-    <div class="value" style="color: #16A34A">{{ "%.2f"|format(stats.revenue) }} Kč</div>
+    <div class="value" style="font-size:1.1rem; color:var(--green)">{{ "%.0f"|format(stats.revenue) }} Kč</div>
   </div>
   <div class="stat-card">
     <div class="label">Nedoplatek</div>
-    <div class="value" style="color: #DC2626">{{ "%.2f"|format(stats.outstanding) }} Kč</div>
+    <div class="value" style="font-size:1.1rem; color:var(--red)">{{ "%.0f"|format(stats.outstanding) }} Kč</div>
   </div>
 </div>
 
 {% if stats.overdue > 0 %}
 <div class="alert alert-danger">
-  ⚠️ Máte <strong>{{ stats.overdue }} faktur{{ 'u' if stats.overdue == 1 else 'y' if stats.overdue < 5 else '' }} po splatnosti</strong>. Prosím kontaktujte klienty.
+  ⚠ Máte <strong>{{ stats.overdue }} faktur po splatnosti</strong> — prosím kontaktujte klienty nebo odešlete upomínky.
 </div>
 {% endif %}
 
 <!-- Filter bar -->
-<div class="card" style="padding:1rem 1.5rem; margin-bottom:1rem;">
-  <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end;">
+<div class="card" style="padding:1rem 1.25rem; margin-bottom:1rem;">
+  <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end;">
     <div>
-      <label style="display:block; font-size:0.78rem; font-weight:600; color:var(--muted); margin-bottom:0.3rem;">OD</label>
-      <input type="date" id="filterFrom" style="width:160px; padding:0.4rem 0.7rem; font-size:0.85rem;">
+      <label>Od</label>
+      <input type="date" id="filterFrom" style="width:150px;">
     </div>
     <div>
-      <label style="display:block; font-size:0.78rem; font-weight:600; color:var(--muted); margin-bottom:0.3rem;">DO</label>
-      <input type="date" id="filterTo" style="width:160px; padding:0.4rem 0.7rem; font-size:0.85rem;">
+      <label>Do</label>
+      <input type="date" id="filterTo" style="width:150px;">
     </div>
     <div>
-      <label style="display:block; font-size:0.78rem; font-weight:600; color:var(--muted); margin-bottom:0.3rem;">KLIENT</label>
-      <select id="filterClient" style="width:180px; padding:0.4rem 0.7rem; font-size:0.85rem;">
+      <label>Klient</label>
+      <select id="filterClient" style="width:180px;">
         <option value="">Všichni klienti</option>
         {% for cid, cname in client_map.items() %}
         <option value="{{ cname }}">{{ cname }}</option>
         {% endfor %}
       </select>
     </div>
-    <button class="btn btn-outline btn-sm" id="clearFilters" style="align-self:flex-end;">✕ Zrušit filtry</button>
-    <div id="filterInfo" style="align-self:flex-end; font-size:0.85rem; color:var(--muted);"></div>
+    <button class="btn btn-ghost btn-sm" id="clearFilters" style="align-self:flex-end;">✕ Zrušit filtry</button>
+    <div id="filterInfo" style="align-self:flex-end; font-size:0.8rem; color:var(--muted);"></div>
   </div>
 </div>
 
-<div class="card">
+<!-- Invoice table -->
+<div class="card" style="padding:0; overflow:hidden;">
   <table id="invoiceTable">
     <thead>
       <tr>
         <th>Číslo faktury</th>
         <th>Klient</th>
-        <th>Datum vystavení</th>
-        <th>Datum splatnosti</th>
-        <th>Celkem</th>
+        <th>Vystaveno</th>
+        <th>Splatnost</th>
+        <th style="text-align:right;">Celkem</th>
         <th>Stav</th>
         <th></th>
       </tr>
@@ -90,56 +95,54 @@
         data-issue="{{ inv.issue_date }}"
         data-due="{{ inv.due_date }}"
       >
-        <td><a href="/invoices/{{ inv.id }}"><strong>{{ inv.invoice_number }}</strong></a></td>
-        <td>{{ client_map.get(inv.client_id, '—') }}</td>
-        <td>{{ inv.issue_date }}</td>
         <td>
+          <a href="/invoices/{{ inv.id }}" style="font-family:'DM Mono',monospace; font-size:0.82rem; font-weight:600; color:var(--accent); text-decoration:none;">
+            {{ inv.invoice_number }}
+          </a>
+        </td>
+        <td style="font-weight:500;">{{ client_map.get(inv.client_id, '—') }}</td>
+        <td style="color:var(--muted); font-size:0.82rem;">{{ inv.issue_date }}</td>
+        <td style="font-size:0.82rem;">
           {{ inv.due_date }}
           {% if inv.status == 'overdue' %}
-            <span style="color:#DC2626; font-size:0.75rem; margin-left:4px;">PO SPLATNOSTI</span>
+            <span style="color:var(--red); font-size:0.7rem; font-weight:700; display:block;">PO SPLATNOSTI</span>
           {% endif %}
         </td>
-        <td><strong>{{ "%.2f"|format(inv.total) }} Kč</strong></td>
+        <td style="text-align:right; font-weight:700; font-family:'DM Mono',monospace; font-size:0.85rem;">{{ "%.2f"|format(inv.total) }} Kč</td>
         <td>
           <span class="badge badge-{{ inv.status }}">
             {% if inv.status == 'paid' %}zaplaceno
-            {% elif inv.status == 'unpaid' %}nezaplaceno
+            {% elif inv.status == 'unpaid' %}čeká
             {% elif inv.status == 'overdue' %}po splatnosti
             {% else %}{{ inv.status }}{% endif %}
           </span>
         </td>
-        <td><a href="/invoices/{{ inv.id }}" class="btn btn-outline btn-sm">Zobrazit</a></td>
+        <td>
+          <a href="/invoices/{{ inv.id }}" class="btn btn-outline btn-sm">Zobrazit →</a>
+        </td>
       </tr>
       {% else %}
-      <tr id="emptyRow"><td colspan="7" style="text-align:center; color: var(--muted); padding: 2rem;">Žádné faktury. <a href="/invoices/new">Vytvořte první fakturu →</a></td></tr>
+      <tr id="emptyRow">
+        <td colspan="7">
+          <div class="empty-state">
+            <div class="empty-icon">📄</div>
+            <p>Žádné faktury. <a href="/invoices/new">Vytvořte první fakturu →</a></p>
+          </div>
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
-  <div id="noResults" style="display:none; text-align:center; color:var(--muted); padding:2rem;">
-    Žádné faktury neodpovídají zvoleným filtrům.
+  <div id="noResults" style="display:none;">
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <p>Žádné faktury neodpovídají zvoleným filtrům.</p>
+    </div>
   </div>
 </div>
 
-<style>
-.stat-clickable {
-  cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s, border-color 0.15s;
-  border-left: 4px solid var(--sand);
-}
-.stat-clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(123,63,30,0.15);
-  border-left-color: var(--accent);
-}
-.stat-clickable.active {
-  border-left-color: var(--accent);
-  background: var(--accent-light);
-}
-</style>
-
 <script>
 let activeStatus = 'all';
-
 const rows = () => document.querySelectorAll('#invoiceTable tbody tr[data-status]');
 
 function applyFilters() {
@@ -147,68 +150,37 @@ function applyFilters() {
   const to = document.getElementById('filterTo').value;
   const client = document.getElementById('filterClient').value;
   let visible = 0;
-
   rows().forEach(row => {
-    const status = row.dataset.status;
-    const issueDate = row.dataset.issue;
-    const rowClient = row.dataset.client;
-
-    const statusOk = activeStatus === 'all' || status === activeStatus;
-    const fromOk = !from || issueDate >= from;
-    const toOk = !to || issueDate <= to;
-    const clientOk = !client || rowClient === client;
-
-    if (statusOk && fromOk && toOk && clientOk) {
-      row.style.display = '';
-      visible++;
-    } else {
-      row.style.display = 'none';
-    }
+    const ok = (activeStatus === 'all' || row.dataset.status === activeStatus)
+      && (!from || row.dataset.issue >= from)
+      && (!to   || row.dataset.issue <= to)
+      && (!client || row.dataset.client === client);
+    row.style.display = ok ? '' : 'none';
+    if (ok) visible++;
   });
-
-  const noResults = document.getElementById('noResults');
-  noResults.style.display = visible === 0 ? 'block' : 'none';
-
-  // Update filter info
+  document.getElementById('noResults').style.display = visible === 0 ? 'block' : 'none';
   const total = rows().length;
-  const info = document.getElementById('filterInfo');
-  info.textContent = visible < total ? `Zobrazeno: ${visible} z ${total}` : '';
+  document.getElementById('filterInfo').textContent = visible < total ? `Zobrazeno: ${visible} / ${total}` : '';
 }
 
-// Stat card click filtering
 document.querySelectorAll('.stat-clickable').forEach(card => {
   card.addEventListener('click', () => {
-    const filter = card.dataset.filter;
-    if (activeStatus === filter) {
-      // toggle off
-      activeStatus = 'all';
-      document.querySelectorAll('.stat-clickable').forEach(c => c.classList.remove('active'));
-      document.querySelectorAll('.stat-clickable[data-filter="all"]').forEach(c => c.classList.add('active'));
-    } else {
-      activeStatus = filter;
-      document.querySelectorAll('.stat-clickable').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-    }
+    const f = card.dataset.filter;
+    activeStatus = activeStatus === f ? 'all' : f;
+    document.querySelectorAll('.stat-clickable').forEach(c => c.classList.remove('active'));
+    if (activeStatus !== 'all') card.classList.add('active');
+    else document.querySelector('[data-filter="all"]').classList.add('active');
     applyFilters();
   });
 });
 
-// Set "Celkem" as default active
-document.querySelector('.stat-clickable[data-filter="all"]').classList.add('active');
-
-// Date + client filters
-['filterFrom', 'filterTo', 'filterClient'].forEach(id => {
-  document.getElementById(id).addEventListener('change', applyFilters);
-});
-
-// Clear filters
+document.querySelector('[data-filter="all"]').classList.add('active');
+['filterFrom','filterTo','filterClient'].forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
 document.getElementById('clearFilters').addEventListener('click', () => {
-  document.getElementById('filterFrom').value = '';
-  document.getElementById('filterTo').value = '';
-  document.getElementById('filterClient').value = '';
+  ['filterFrom','filterTo','filterClient'].forEach(id => document.getElementById(id).value = '');
   activeStatus = 'all';
   document.querySelectorAll('.stat-clickable').forEach(c => c.classList.remove('active'));
-  document.querySelector('.stat-clickable[data-filter="all"]').classList.add('active');
+  document.querySelector('[data-filter="all"]').classList.add('active');
   applyFilters();
 });
 </script>

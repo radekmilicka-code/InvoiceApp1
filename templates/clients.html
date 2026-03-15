@@ -1,59 +1,65 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
-  <h1>Klienti</h1>
-  <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+  <div>
+    <h1>Klienti</h1>
+    <div class="page-desc">{{ clients|length }} klientů celkem</div>
+  </div>
+  <div class="page-actions">
     <a href="/export/clients/csv" class="btn btn-outline">⬇ Export CSV</a>
-    <label class="btn btn-outline" style="cursor:pointer; margin:0;" title="Importovat klienty z CSV">
-      ⬆ Import CSV
-      <form id="importForm" method="post" action="/import/clients/csv" enctype="multipart/form-data" style="display:none;">
-        <input type="file" name="csv_file" accept=".csv" onchange="document.getElementById('importForm').submit()">
+    <label class="btn btn-outline" style="cursor:pointer;">
+      ↑ Import CSV
+      <form method="post" action="/import/clients/csv" enctype="multipart/form-data" style="display:none;">
+        <input type="file" name="file" accept=".csv" onchange="this.form.submit()">
       </form>
-      <span onclick="document.querySelector('#importForm input').click()" style="cursor:pointer;"></span>
     </label>
     <a href="/clients/add" class="btn btn-primary">+ Přidat klienta</a>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:1rem; padding:0.75rem 1.5rem; background:var(--accent-light); border-color: #C7D2FE;">
-  <div style="font-size:0.82rem; color:var(--accent);">
-    <strong>Formát CSV pro import:</strong> soubor musí mít záhlaví:
-    <code style="background:white; padding:1px 6px; border-radius:4px; margin-left:4px;">Jméno;Firma;E-mail;Telefon;Adresa</code>
-    — oddělovač středník, kódování UTF-8.
-    <a href="/export/clients/csv" style="margin-left:8px;">Stáhnout vzor →</a>
-  </div>
-</div>
-
-<div class="card">
+<div class="card" style="padding:0; overflow:hidden;">
   <table>
     <thead>
-      <tr><th>Jméno</th><th>Firma</th><th>E-mail</th><th>Telefon</th><th></th></tr>
+      <tr>
+        <th>Jméno</th>
+        <th>Firma</th>
+        <th>E-mail</th>
+        <th>Telefon</th>
+        <th>Adresa</th>
+        <th></th>
+      </tr>
     </thead>
     <tbody>
       {% for c in clients %}
       <tr>
-        <td><strong>{{ c.name }}</strong></td>
-        <td>{{ c.company or '—' }}</td>
-        <td>{{ c.email }}</td>
-        <td>{{ c.phone or '—' }}</td>
-        <td style="display:flex; gap:0.5rem;">
-          <a href="/clients/edit/{{ c.id }}" class="btn btn-outline btn-sm">Upravit</a>
-          <form method="post" action="/clients/delete/{{ c.id }}" onsubmit="return confirm('Smazat tohoto klienta?')">
-            <button class="btn btn-danger btn-sm" type="submit">Smazat</button>
-          </form>
+        <td style="font-weight:600;">{{ c.name }}</td>
+        <td style="color:var(--muted); font-size:0.85rem;">{{ c.company or '—' }}</td>
+        <td style="font-size:0.85rem;">
+          {% if c.email %}<a href="mailto:{{ c.email }}" style="color:var(--accent);">{{ c.email }}</a>{% else %}—{% endif %}
+        </td>
+        <td style="font-size:0.85rem; color:var(--muted);">{{ c.phone or '—' }}</td>
+        <td style="font-size:0.82rem; color:var(--muted); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ c.address or '—' }}</td>
+        <td>
+          <div style="display:flex; gap:0.4rem;">
+            <a href="/clients/edit/{{ c.id }}" class="btn btn-outline btn-sm">Upravit</a>
+            <form method="post" action="/clients/delete/{{ c.id }}" onsubmit="return confirm('Smazat klienta {{ c.name }}?')" style="margin:0;">
+              <button class="btn btn-ghost btn-sm" type="submit" style="color:var(--red);">Smazat</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center; color:var(--muted); padding:2rem;">Žádní klienti. <a href="/clients/add">Přidat klienta →</a></td></tr>
+      <tr>
+        <td colspan="6">
+          <div class="empty-state">
+            <div class="empty-icon">👤</div>
+            <p>Žádní klienti. <a href="/clients/add">Přidejte prvního klienta →</a></p>
+          </div>
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-
-<script>
-// Allow clicking the label area to trigger file input
-document.querySelector('#importForm input[type=file]').addEventListener('change', function() {
-  if (this.files.length > 0) document.getElementById('importForm').submit();
-});
-</script>
 {% endblock %}

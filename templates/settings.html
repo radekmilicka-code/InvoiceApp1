@@ -1,156 +1,129 @@
 {% extends 'base.html' %}
 {% block content %}
+
 <div class="page-header">
   <div>
-    <h1>⚙️ Nastavení</h1>
-    <p class="text-muted">Údaje o vaší firmě se automaticky zobrazí na každé faktuře a PDF.</p>
+    <h1>Nastavení</h1>
+    <div class="page-desc">Údaje o firmě se zobrazují na každé faktuře a PDF</div>
   </div>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for cat, msg in messages %}
-    <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }} mb-3">{{ msg }}</div>
-  {% endfor %}
-{% endwith %}
-
 <form method="post">
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; align-items:start;">
 
   <!-- Firma -->
   <div class="card">
-    <div class="card-header"><strong>🏢 Identifikace firmy</strong></div>
-    <div class="card-body">
-      <div class="mb-3">
-        <label class="form-label">Název firmy</label>
-        <input type="text" name="company_name" class="form-control" value="{{ s.company_name }}">
+    <div class="card-header">
+      <div class="card-title">Identifikace firmy</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Název firmy</label>
+        <input type="text" name="company_name" value="{{ s.company_name }}" placeholder="Vaše firma s.r.o.">
       </div>
-      <div class="mb-3">
-        <label class="form-label">Podtitulek (např. Pekárna & Cukrárna)</label>
-        <input type="text" name="company_subtitle" class="form-control" value="{{ s.company_subtitle }}">
+      <div class="form-group">
+        <label>Podtitulek</label>
+        <input type="text" name="company_subtitle" value="{{ s.company_subtitle }}" placeholder="Pekárna & Cukrárna">
       </div>
-      <div class="mb-3">
-        <label class="form-label">IČO</label>
-        <input type="text" name="ico" class="form-control" value="{{ s.ico }}" placeholder="12345678">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>IČO</label>
+        <input type="text" name="ico" value="{{ s.ico }}" placeholder="12345678">
       </div>
-      <div class="mb-3">
-        <label class="form-label">DIČ</label>
-        <input type="text" name="dic" class="form-control" value="{{ s.dic }}" placeholder="CZ12345678">
+      <div class="form-group">
+        <label>DIČ</label>
+        <input type="text" name="dic" value="{{ s.dic }}" placeholder="CZ12345678">
       </div>
-      <div class="mb-3">
-        <label class="form-label">Adresa</label>
-        <textarea name="address" class="form-control" rows="2">{{ s.address }}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Adresa</label>
+      <textarea name="address" style="min-height:60px;">{{ s.address }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" name="email" value="{{ s.email }}" placeholder="info@firma.cz">
       </div>
-      <div class="mb-3">
-        <label class="form-label">E-mail</label>
-        <input type="email" name="email" class="form-control" value="{{ s.email }}">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Telefon</label>
-        <input type="text" name="phone" class="form-control" value="{{ s.phone }}">
+      <div class="form-group">
+        <label>Telefon</label>
+        <input type="text" name="phone" value="{{ s.phone }}" placeholder="+420 777 123 456">
       </div>
     </div>
   </div>
 
-  <!-- Platby & faktury -->
-  <div style="display:flex; flex-direction:column; gap:1.5rem;">
+  <div style="display:flex; flex-direction:column; gap:1.25rem;">
+    <!-- Platební údaje -->
     <div class="card">
-      <div class="card-header"><strong>🏦 Platební údaje</strong></div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label">Číslo účtu</label>
-          <input type="text" name="bank_account" class="form-control" value="{{ s.bank_account }}" placeholder="123456789/0800">
-          <div class="form-text">Ve formátu číslo/kód banky</div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">IBAN</label>
-          <input type="text" name="iban" class="form-control" value="{{ s.iban }}" placeholder="CZ6508000000001234567890">
-          <div class="form-text">Vyplňte pro generování QR kódu platby na PDF</div>
-        </div>
-        {% if s.iban %}
-        <div class="alert alert-success py-2 px-3 mb-0" style="font-size:.85rem;">
-          ✅ QR kód platby bude automaticky přidán do každého PDF
-        </div>
-        {% else %}
-        <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.85rem;">
-          ⚠️ Bez IBAN nebude QR kód generován
-        </div>
-        {% endif %}
+      <div class="card-header">
+        <div class="card-title">Platební údaje</div>
+      </div>
+      <div class="form-group">
+        <label>Číslo účtu</label>
+        <input type="text" name="bank_account" value="{{ s.bank_account }}" placeholder="123456789/0800">
+      </div>
+      <div class="form-group">
+        <label>IBAN</label>
+        <input type="text" name="iban" value="{{ s.iban }}" placeholder="CZ65 0800 0000 0012 3456 7890">
+        <div class="form-hint">Slouží pro generování QR kódu na PDF faktuře</div>
       </div>
     </div>
 
+    <!-- Výchozí hodnoty -->
     <div class="card">
-      <div class="card-header"><strong>📄 Výchozí hodnoty faktur</strong></div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label">Prefix čísla faktury</label>
-          <input type="text" name="invoice_prefix" class="form-control" value="{{ s.invoice_prefix }}" placeholder="INV">
-          <div class="form-text">Např. INV → INV-0001, FAK → FAK-0001</div>
+      <div class="card-header">
+        <div class="card-title">Výchozí hodnoty faktury</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prefix čísla faktury</label>
+          <input type="text" name="invoice_prefix" value="{{ s.invoice_prefix }}" placeholder="INV">
         </div>
-        <div class="mb-3">
-          <label class="form-label">Výchozí splatnost (dny)</label>
-          <input type="number" name="default_due_days" class="form-control" value="{{ s.default_due_days }}" min="1" max="365">
+        <div class="form-group">
+          <label>Splatnost (dní)</label>
+          <input type="number" name="default_due_days" value="{{ s.default_due_days }}" min="1" max="365">
         </div>
-        <div class="mb-3">
-          <label class="form-label">Výchozí sazba DPH (%)</label>
-          <select name="default_tax_rate" class="form-select">
-            <option value="0"   {% if s.default_tax_rate == 0   %}selected{% endif %}>0 % (osvobozeno)</option>
-            <option value="10"  {% if s.default_tax_rate == 10  %}selected{% endif %}>10 %</option>
-            <option value="12"  {% if s.default_tax_rate == 12  %}selected{% endif %}>12 %</option>
-            <option value="21"  {% if s.default_tax_rate == 21  %}selected{% endif %}>21 %</option>
-          </select>
+        <div class="form-group">
+          <label>Výchozí DPH (%)</label>
+          <input type="number" name="default_tax_rate" value="{{ s.default_tax_rate }}" min="0" max="100" step="0.1">
         </div>
       </div>
     </div>
-  </div>
 
-</div>
-
-<!-- Email / SMTP -->
-<div class="card mt-4">
-  <div class="card-header"><strong>📧 Odesílání e-mailů</strong></div>
-  <div class="card-body">
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;" class="mb-3">
-      <div>
-        <label class="form-label">SMTP server</label>
-        <input type="text" name="smtp_host" class="form-control" value="{{ s.smtp_host }}" placeholder="smtp.seznam.cz">
+    <!-- Email / Resend -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Odesílání e-mailů</div>
       </div>
-      <div>
-        <label class="form-label">Port</label>
-        <input type="number" name="smtp_port" class="form-control" value="{{ s.smtp_port }}" placeholder="465">
-        <div class="form-text">465 = SSL (Seznam), 587 = TLS</div>
+      <div class="alert alert-info" style="font-size:0.8rem; margin-bottom:1rem;">
+        Aplikace používá <strong>Resend.com</strong> pro odesílání e-mailů.
+        Zaregistruj se zdarma na <a href="https://resend.com" target="_blank" style="color:var(--accent);">resend.com</a> a zkopíruj API klíč.
+        Free tier = 3 000 e-mailů/měsíc.
       </div>
-      <div>
-        <label class="form-label">Upomínky po (dní)</label>
-        <input type="number" name="reminder_days" class="form-control" value="{{ s.reminder_days }}" min="1" max="60">
-        <div class="form-text">Počet dní po splatnosti před upomínkou</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Resend API klíč</label>
+          <input type="password" name="resend_api_key" value="{{ s.resend_api_key }}" placeholder="re_xxxxxxxxxxxx">
+        </div>
+        <div class="form-group">
+          <label>Upomínky po (dní)</label>
+          <input type="number" name="reminder_days" value="{{ s.reminder_days }}" min="1" max="60">
+        </div>
       </div>
+      {% if s.resend_api_key %}
+      <div class="alert alert-success" style="font-size:0.8rem;">✓ Resend API klíč je nastaven — odesílání e-mailů aktivní</div>
+      {% else %}
+      <div class="alert alert-warning" style="font-size:0.8rem;">
+        ⚠ Bez API klíče nebude odesílání fungovat.
+        <a href="https://resend.com/signup" target="_blank">Zaregistrovat se →</a>
+      </div>
+      {% endif %}
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
-      <div>
-        <label class="form-label">E-mail (přihlášení)</label>
-        <input type="email" name="smtp_user" class="form-control" value="{{ s.smtp_user }}" placeholder="fakturace@firma.cz">
-      </div>
-      <div>
-        <label class="form-label">Heslo</label>
-        <input type="password" name="smtp_password" class="form-control" value="{{ s.smtp_password }}" placeholder="••••••••">
-        <div class="form-text">Pro Seznam.cz použijte heslo aplikace z nastavení účtu</div>
-      </div>
-    </div>
-    {% if s.smtp_user %}
-    <div class="alert alert-success py-2 px-3 mt-3 mb-0" style="font-size:.85rem;">
-      ✅ E-mail nakonfigurován: {{ s.smtp_user }}
-    </div>
-    {% else %}
-    <div class="alert alert-warning py-2 px-3 mt-3 mb-0" style="font-size:.85rem;">
-      ⚠️ Bez vyplnění e-mailu a hesla nebude odesílání fungovat
-    </div>
-    {% endif %}
   </div>
 </div>
 
-<div class="mt-4 d-flex gap-2">
-  <button type="submit" class="btn btn-primary">💾 Uložit nastavení</button>
-  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Zrušit</a>
+<div style="margin-top:1.25rem;">
+  <button type="submit" class="btn btn-primary">Uložit nastavení</button>
 </div>
 </form>
 {% endblock %}

@@ -1,35 +1,52 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
-  <h1>{{ 'Upravit produkt' if product else 'Přidat produkt' }}</h1>
+  <div>
+    <h1>{{ 'Upravit produkt' if product else 'Nový produkt' }}</h1>
+    <div class="page-desc">{{ product.name if product else 'Přidat produkt do katalogu' }}</div>
+  </div>
   <a href="/products" class="btn btn-outline">← Zpět</a>
 </div>
-<div class="card" style="max-width:560px;">
+
+<div class="card" style="max-width:600px;">
   <form method="post">
     <div class="form-group">
-      <label>Název produktu / služby *</label>
-      <input name="name" required value="{{ product.name if product else '' }}" placeholder="např. Webdesign, Konzultační hodina">
+      <label>Název produktu *</label>
+      <input type="text" name="name" required value="{{ product.name if product else '' }}" placeholder="Chléb šumavský">
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Výchozí cena (Kč) *</label>
-        <input type="number" name="price" min="0" step="0.01" required
-               value="{{ product.price if product else '' }}" placeholder="0.00">
+        <label>Kategorie</label>
+        <input type="text" name="category" value="{{ product.category if product else '' }}" placeholder="Pečivo, Dorty...">
       </div>
       <div class="form-group">
         <label>Jednotka</label>
-        <input name="unit" value="{{ product.unit if product else '' }}" placeholder="např. hodina, kus, strana">
+        <select name="unit">
+          {% for u in ['ks', 'bal', 'kg', 'l', 'jízda', 'hod'] %}
+          <option value="{{ u }}" {{ 'selected' if product and product.unit == u }}>{{ u }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
-    <div class="form-group">
-      <label>Kategorie</label>
-      <input name="category" value="{{ product.category if product else '' }}" placeholder="např. Design, Vývoj, Konzultace">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cena bez DPH (Kč) *</label>
+        <input type="number" name="price" step="0.01" min="0" required value="{{ product.price if product else '' }}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>Sazba DPH (%)</label>
+        <select name="tax_rate">
+          {% for r in [0, 10, 12, 21] %}
+          <option value="{{ r }}" {{ 'selected' if product and product.tax_rate == r }}>{{ r }}%</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Popis</label>
-      <textarea name="description" placeholder="Volitelný krátký popis">{{ product.description if product else '' }}</textarea>
+    <div style="display:flex; gap:0.5rem; margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if product else 'Přidat produkt' }}</button>
+      <a href="/products" class="btn btn-outline">Zrušit</a>
     </div>
-    <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if product else 'Přidat produkt' }}</button>
   </form>
 </div>
 {% endblock %}

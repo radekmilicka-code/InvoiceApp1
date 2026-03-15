@@ -1,36 +1,44 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
-  <h1>{{ 'Upravit klienta' if client else 'Přidat klienta' }}</h1>
+  <div>
+    <h1>{{ 'Upravit klienta' if client else 'Nový klient' }}</h1>
+    <div class="page-desc">{{ client.name if client else 'Vyplňte údaje nového klienta' }}</div>
+  </div>
   <a href="/clients" class="btn btn-outline">← Zpět</a>
 </div>
-<div class="card" style="max-width:560px;">
+
+<div class="card" style="max-width:600px;">
   <form method="post">
     <div class="form-row">
       <div class="form-group">
         <label>Celé jméno *</label>
-        <input name="name" required value="{{ client.name if client else '' }}">
+        <input type="text" name="name" required value="{{ client.name if client else '' }}" placeholder="Jan Novák">
       </div>
       <div class="form-group">
         <label>Firma</label>
-        <input name="company" value="{{ client.company if client else '' }}">
+        <input type="text" name="company" value="{{ client.company if client else '' }}" placeholder="Firma s.r.o.">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>E-mail *</label>
-        <input type="email" name="email" required value="{{ client.email if client else '' }}">
+        <label>E-mail</label>
+        <input type="email" name="email" value="{{ client.email if client else '' }}" placeholder="jan@firma.cz">
       </div>
       <div class="form-group">
         <label>Telefon</label>
-        <input name="phone" value="{{ client.phone if client else '' }}">
+        <input type="text" name="phone" value="{{ client.phone if client else '' }}" placeholder="+420 777 123 456">
       </div>
     </div>
     <div class="form-group">
       <label>Adresa</label>
-      <textarea name="address">{{ client.address if client else '' }}</textarea>
+      <input type="text" name="address" value="{{ client.address if client else '' }}" placeholder="Hlavní 1, 110 00 Praha 1">
     </div>
-    <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if client else 'Přidat klienta' }}</button>
+    <div style="display:flex; gap:0.5rem; margin-top:1.25rem;">
+      <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if client else 'Vytvořit klienta' }}</button>
+      <a href="/clients" class="btn btn-outline">Zrušit</a>
+    </div>
   </form>
 </div>
 {% endblock %}

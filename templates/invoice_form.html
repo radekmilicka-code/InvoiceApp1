@@ -1,30 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
-  <h1>{{ 'Upravit fakturu' if invoice else 'Nová faktura' }}</h1>
+  <div>
+    <h1>{{ 'Upravit fakturu' if invoice else 'Nová faktura' }}</h1>
+    <div class="page-desc">{{ invoice.invoice_number if invoice else 'Vyplňte podrobnosti nové faktury' }}</div>
+  </div>
   <a href="/" class="btn btn-outline">← Zpět</a>
 </div>
+
 <div class="card">
   <form method="post" id="invoiceForm">
+
+    <!-- Header fields -->
     <div class="form-row">
       <div class="form-group">
         <label>Klient *</label>
         <select name="client_id" required>
           <option value="">— Vyberte klienta —</option>
           {% for c in clients %}
-          <option value="{{ c.id }}" {{ 'selected' if invoice and invoice.client_id == c.id }}>{{ c.name }}{% if c.company %} ({{ c.company }}){% endif %}</option>
+          <option value="{{ c.id }}" {{ 'selected' if invoice and invoice.client_id == c.id }}>
+            {{ c.name }}{% if c.company %} · {{ c.company }}{% endif %}
+          </option>
           {% endfor %}
         </select>
         {% if not clients %}
-        <p style="color:var(--muted); font-size:0.8rem; margin-top:4px;">Žádní klienti. <a href="/clients/add">Nejprve přidejte klienta →</a></p>
+        <div class="form-hint">Žádní klienti. <a href="/clients/add">Nejprve přidejte klienta →</a></div>
         {% endif %}
       </div>
       <div class="form-group">
         <label>Sazba DPH (%)</label>
-        <input type="number" name="tax_rate" min="0" max="100" step="0.01" value="{{ invoice.tax_rate if invoice else '0' }}" id="taxRate">
+        <select name="tax_rate" id="taxRate">
+          {% for r in [0, 10, 12, 21] %}
+          <option value="{{ r }}" {{ 'selected' if invoice and invoice.tax_rate == r else ('selected' if not invoice and r == 21) }}>{{ r }}%</option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
         <label>Datum vystavení *</label>
         <input type="date" name="issue_date" required value="{{ invoice.issue_date if invoice else today }}">
@@ -35,70 +46,90 @@
       </div>
     </div>
 
-    <hr style="border:none; border-top:1px solid var(--border); margin: 1.2rem 0;">
+    <div class="divider"></div>
+
+    <!-- Items -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-      <h3 style="font-size:1rem;">Položky faktury</h3>
+      <div style="font-size:0.78rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">Položky faktury</div>
       {% if products %}
       <div style="display:flex; align-items:center; gap:0.5rem;">
-        <label style="font-size:0.82rem; font-weight:600; color:var(--muted); margin:0;">Přidat z katalogu:</label>
-        <select id="productPicker" style="width:220px; padding:0.4rem 0.7rem; font-size:0.85rem;">
-          <option value="">— Vyberte produkt —</option>
+        <select id="productPicker" style="width:240px;">
+          <option value="">+ Přidat z katalogu...</option>
           {% for p in products | sort(attribute='category') %}
           <option value="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
-            {% if p.category %}[{{ p.category }}] {% endif %}{{ p.name }} — {{ "%.2f"|format(p.price) }} Kč{% if p.unit %}/{{ p.unit }}{% endif %}
+            {% if p.category %}{{ p.category }} · {% endif %}{{ p.name }} — {{ "%.2f"|format(p.price) }} Kč
           </option>
           {% endfor %}
         </select>
-        <button type="button" class="btn btn-primary btn-sm" id="addFromCatalog">+ Přidat</button>
+        <button type="button" class="btn btn-outline btn-sm" id="addFromCatalog">Přidat</button>
       </div>
       {% endif %}
     </div>
-    <table id="itemsTable" style="margin-bottom:0.75rem;">
-      <thead>
-        <tr>
-          <th style="width:50%">Popis</th>
-          <th>Množství</th>
-          <th>Jednotková cena (Kč)</th>
-          <th>Celkem</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="itemsBody">
-        {% if invoice and invoice['items'] %}
-  {% for it in invoice['items'] %}
-          <tr class="item-row">
-            <td><input name="item_name" required value="{{ it.name }}" placeholder="Popis položky"></td>
-            <td><input name="item_qty" type="number" min="0.01" step="0.01" value="{{ it.qty }}" class="qty" style="width:80px" required></td>
-            <td><input name="item_price" type="number" min="0" step="0.01" value="{{ it.price }}" class="price" style="width:110px" required></td>
-            <td class="subtotal" style="font-weight:600; white-space:nowrap;">{{ "%.2f"|format(it.subtotal) }} Kč</td>
-            <td><button type="button" class="btn btn-danger btn-sm remove-row">✕</button></td>
+
+    <div style="overflow-x:auto; margin-bottom:0.75rem;">
+      <table id="itemsTable" style="min-width:600px;">
+        <thead>
+          <tr>
+            <th style="width:45%">Popis</th>
+            <th>Množství</th>
+            <th>Cena / ks (Kč)</th>
+            <th style="text-align:right;">Celkem</th>
+            <th style="width:40px;"></th>
           </tr>
-          {% endfor %}
-        {% else %}
-          <tr class="item-row">
-            <td><input name="item_name" required placeholder="Popis položky"></td>
-            <td><input name="item_qty" type="number" min="0.01" step="0.01" value="1" class="qty" style="width:80px" required></td>
-            <td><input name="item_price" type="number" min="0" step="0.01" value="" class="price" style="width:110px" required placeholder="0.00"></td>
-            <td class="subtotal" style="font-weight:600;">0.00 Kč</td>
-            <td><button type="button" class="btn btn-danger btn-sm remove-row">✕</button></td>
-          </tr>
-        {% endif %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody id="itemsBody">
+          {% if invoice and invoice.items %}
+            {% for it in invoice.items %}
+            <tr class="item-row">
+              <td><input name="item_name" required value="{{ it.name }}" placeholder="Popis položky"></td>
+              <td><input name="item_qty" type="number" min="0.01" step="0.01" value="{{ it.qty }}" class="qty" style="width:80px" required></td>
+              <td><input name="item_price" type="number" min="0" step="0.01" value="{{ it.price }}" class="price" style="width:110px" required></td>
+              <td class="subtotal" style="text-align:right; font-weight:700; font-family:'DM Mono',monospace; font-size:0.82rem; white-space:nowrap;">{{ "%.2f"|format(it.subtotal) }} Kč</td>
+              <td><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--red); padding:0.3rem 0.5rem;">✕</button></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="item-row">
+              <td><input name="item_name" required placeholder="Popis položky"></td>
+              <td><input name="item_qty" type="number" min="0.01" step="0.01" value="1" class="qty" style="width:80px" required></td>
+              <td><input name="item_price" type="number" min="0" step="0.01" value="" class="price" style="width:110px" required placeholder="0.00"></td>
+              <td class="subtotal" style="text-align:right; font-weight:700; font-family:'DM Mono',monospace; font-size:0.82rem;">0.00 Kč</td>
+              <td><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--red); padding:0.3rem 0.5rem;">✕</button></td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
     <button type="button" class="btn btn-outline btn-sm" id="addRow">+ Přidat položku</button>
 
-    <div style="margin-top:1.5rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.3rem;">
-      <div style="font-size:0.9rem; color:var(--muted);">Mezisoučet: <strong id="subtotalDisplay">0.00 Kč</strong></div>
-      <div style="font-size:0.9rem; color:var(--muted);">DPH: <strong id="taxDisplay">0.00 Kč</strong></div>
-      <div style="font-size:1.2rem; font-weight:700; color:var(--accent);">Celkem: <span id="totalDisplay">0.00 Kč</span></div>
+    <!-- Totals -->
+    <div style="margin-top:1.5rem; display:flex; justify-content:flex-end;">
+      <div style="min-width:260px; background:var(--light); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem;">
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--muted); margin-bottom:0.4rem;">
+          <span>Mezisoučet</span><strong id="subtotalDisplay" style="font-family:'DM Mono',monospace; color:var(--text);">0.00 Kč</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--muted); padding-bottom:0.75rem; border-bottom:1px solid var(--border); margin-bottom:0.75rem;">
+          <span>DPH</span><strong id="taxDisplay" style="font-family:'DM Mono',monospace; color:var(--text);">0.00 Kč</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <span style="font-weight:700; font-size:0.9rem;">Celkem</span>
+          <span id="totalDisplay" style="font-family:'DM Mono',monospace; font-size:1.15rem; font-weight:800; color:var(--accent);">0.00 Kč</span>
+        </div>
+      </div>
     </div>
 
-    <hr style="border:none; border-top:1px solid var(--border); margin: 1.2rem 0;">
+    <div class="divider"></div>
+
     <div class="form-group">
       <label>Poznámky / Platební instrukce</label>
-      <textarea name="notes" placeholder="např. Splatnost 30 dní. Bankovní převod na účet...">{{ invoice.notes if invoice else '' }}</textarea>
+      <textarea name="notes" placeholder="např. Platba převodem na účet...">{{ invoice.notes if invoice else '' }}</textarea>
     </div>
-    <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if invoice else 'Vytvořit fakturu' }}</button>
+
+    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+      <button type="submit" class="btn btn-primary">{{ 'Uložit změny' if invoice else 'Vytvořit fakturu' }}</button>
+      <a href="/" class="btn btn-outline">Zrušit</a>
+    </div>
   </form>
 </div>
 
@@ -112,7 +143,8 @@ function recalc() {
     row.querySelector('.subtotal').textContent = st.toFixed(2) + ' Kč';
     sub += st;
   });
-  const tax = sub * (parseFloat(document.getElementById('taxRate').value) || 0) / 100;
+  const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
+  const tax = sub * taxRate / 100;
   document.getElementById('subtotalDisplay').textContent = sub.toFixed(2) + ' Kč';
   document.getElementById('taxDisplay').textContent = tax.toFixed(2) + ' Kč';
   document.getElementById('totalDisplay').textContent = (sub + tax).toFixed(2) + ' Kč';
@@ -121,13 +153,12 @@ function recalc() {
 function addRowListeners(row) {
   row.querySelectorAll('.qty, .price').forEach(el => el.addEventListener('input', recalc));
   row.querySelector('.remove-row').addEventListener('click', () => {
-    if (document.querySelectorAll('.item-row').length > 1) {
-      row.remove(); recalc();
-    }
+    if (document.querySelectorAll('.item-row').length > 1) { row.remove(); recalc(); }
   });
 }
 
 document.querySelectorAll('.item-row').forEach(addRowListeners);
+document.getElementById('taxRate').addEventListener('change', recalc);
 
 document.getElementById('addRow').addEventListener('click', () => {
   const row = document.createElement('tr');
@@ -136,14 +167,12 @@ document.getElementById('addRow').addEventListener('click', () => {
     <td><input name="item_name" required placeholder="Popis položky"></td>
     <td><input name="item_qty" type="number" min="0.01" step="0.01" value="1" class="qty" style="width:80px" required></td>
     <td><input name="item_price" type="number" min="0" step="0.01" class="price" style="width:110px" required placeholder="0.00"></td>
-    <td class="subtotal" style="font-weight:600;">0.00 Kč</td>
-    <td><button type="button" class="btn btn-danger btn-sm remove-row">✕</button></td>`;
+    <td class="subtotal" style="text-align:right; font-weight:700; font-family:'DM Mono',monospace; font-size:0.82rem;">0.00 Kč</td>
+    <td><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--red); padding:0.3rem 0.5rem;">✕</button></td>`;
   document.getElementById('itemsBody').appendChild(row);
   addRowListeners(row);
+  row.querySelector('input').focus();
 });
-
-document.getElementById('taxRate').addEventListener('input', recalc);
-recalc();
 
 const catalogBtn = document.getElementById('addFromCatalog');
 if (catalogBtn) {
@@ -154,16 +183,17 @@ if (catalogBtn) {
     const row = document.createElement('tr');
     row.className = 'item-row';
     row.innerHTML = `
-      <td><input name="item_name" required value="${opt.dataset.name}" placeholder="Popis položky"></td>
+      <td><input name="item_name" required value="${opt.dataset.name}"></td>
       <td><input name="item_qty" type="number" min="0.01" step="0.01" value="1" class="qty" style="width:80px" required></td>
       <td><input name="item_price" type="number" min="0" step="0.01" value="${opt.dataset.price}" class="price" style="width:110px" required></td>
-      <td class="subtotal" style="font-weight:600;">0.00 Kč</td>
-      <td><button type="button" class="btn btn-danger btn-sm remove-row">✕</button></td>`;
+      <td class="subtotal" style="text-align:right; font-weight:700; font-family:'DM Mono',monospace; font-size:0.82rem;">0.00 Kč</td>
+      <td><button type="button" class="btn btn-ghost btn-sm remove-row" style="color:var(--red); padding:0.3rem 0.5rem;">✕</button></td>`;
     document.getElementById('itemsBody').appendChild(row);
     addRowListeners(row);
     recalc();
     picker.selectedIndex = 0;
   });
 }
+recalc();
 </script>
 {% endblock %}
