@@ -8,6 +8,12 @@
   </div>
   <div class="page-actions">
     <a href="/export/invoices/csv" class="btn btn-outline">⬇ Export CSV</a>
+    <label class="btn btn-outline" style="cursor:pointer;" title="Importovat faktury z CSV">
+      ↑ Import CSV
+      <form method="post" action="/import/invoices/csv" enctype="multipart/form-data" style="display:none;">
+        <input type="file" name="file" accept=".csv" onchange="this.form.submit()">
+      </form>
+    </label>
     <form method="post" action="/reminders/send" style="margin:0;">
       <button type="submit" class="btn btn-outline" title="Odeslat upomínky klientům po splatnosti">🔔 Upomínky</button>
     </form>
@@ -101,9 +107,9 @@
           </a>
         </td>
         <td style="font-weight:500;">{{ client_map.get(inv.client_id, '—') }}</td>
-        <td style="color:var(--muted); font-size:0.82rem;">{{ inv.issue_date }}</td>
+        <td style="color:var(--muted); font-size:0.82rem;">{% if inv.issue_date %}{{ inv.issue_date[8:10] }}/{{ inv.issue_date[5:7] }}/{{ inv.issue_date[0:4] }}{% else %}—{% endif %}</td>
         <td style="font-size:0.82rem;">
-          {{ inv.due_date }}
+          {% if inv.due_date %}{{ inv.due_date[8:10] }}/{{ inv.due_date[5:7] }}/{{ inv.due_date[0:4] }}{% else %}—{% endif %}
           {% if inv.status == 'overdue' %}
             <span style="color:var(--red); font-size:0.7rem; font-weight:700; display:block;">PO SPLATNOSTI</span>
           {% endif %}

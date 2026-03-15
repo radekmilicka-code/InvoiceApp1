@@ -41,7 +41,7 @@
 
 {% if invoice.status == 'overdue' %}
 <div class="alert alert-danger">
-  ⚠ <strong>PO SPLATNOSTI:</strong> Faktura byla splatná {{ invoice.due_date }} —
+  ⚠ <strong>PO SPLATNOSTI:</strong> Faktura byla splatná {% if invoice.due_date %}{{ invoice.due_date[8:10] }}/{{ invoice.due_date[5:7] }}/{{ invoice.due_date[0:4] }}{% else %}—{% endif %} —
   <strong>{{ overdue_days }} dní po splatnosti.</strong>
   Kontaktujte {{ client.name }}{% if client.email %} na {{ client.email }}{% endif %}.
 </div>
@@ -67,16 +67,16 @@
       </tr>
       <tr>
         <td style="padding:4px 0; color:var(--muted); font-size:0.82rem; border:none;">Datum vystavení</td>
-        <td style="padding:4px 0; text-align:right; font-size:0.85rem; border:none;">{{ invoice.issue_date }}</td>
+        <td style="padding:4px 0; text-align:right; font-size:0.85rem; border:none;">{% if invoice.issue_date %}{{ invoice.issue_date[8:10] }}/{{ invoice.issue_date[5:7] }}/{{ invoice.issue_date[0:4] }}{% else %}—{% endif %}</td>
       </tr>
       <tr>
         <td style="padding:4px 0; color:var(--muted); font-size:0.82rem; border:none;">Datum splatnosti</td>
-        <td style="padding:4px 0; text-align:right; font-size:0.85rem; border:none; {% if invoice.status == 'overdue' %}color:var(--red); font-weight:700;{% endif %}">{{ invoice.due_date }}</td>
+        <td style="padding:4px 0; text-align:right; font-size:0.85rem; border:none; {% if invoice.status == 'overdue' %}color:var(--red); font-weight:700;{% endif %}">{% if invoice.due_date %}{{ invoice.due_date[8:10] }}/{{ invoice.due_date[5:7] }}/{{ invoice.due_date[0:4] }}{% else %}—{% endif %}</td>
       </tr>
       {% if invoice.get('paid_at') %}
       <tr>
         <td style="padding:4px 0; color:var(--muted); font-size:0.82rem; border:none;">Datum úhrady</td>
-        <td style="padding:4px 0; text-align:right; font-size:0.85rem; color:var(--green); font-weight:600; border:none;">{{ invoice.paid_at[:10] }}</td>
+        <td style="padding:4px 0; text-align:right; font-size:0.85rem; color:var(--green); font-weight:600; border:none;">{% set p = invoice.paid_at[:10] %}{{ p[8:10] }}/{{ p[5:7] }}/{{ p[0:4] }}</td>
       </tr>
       {% endif %}
     </table>

@@ -62,7 +62,7 @@ def logout():
 
 def _build_email_body(invoice, client, s):
     company = s.get('company_name', 'Fakturace')
-    body = f"Dobry den,\n\nv priloze zasilame fakturu c. {invoice['invoice_number']} na castku {invoice['total']:.2f} Kc.\nDatum splatnosti: {invoice['due_date']}.\n"
+    body = f"Dobry den,\n\nv priloze zasilame fakturu c. {invoice['invoice_number']} na castku {invoice['total']:.2f} Kc.\nDatum splatnosti: {invoice['due_date'][8:10]}/{invoice['due_date'][5:7]}/{invoice['due_date'][0:4]}.\n"
     if s.get('bank_account'):
         body += f"Cislo uctu: {s['bank_account']}\n"
     if s.get('iban'):
@@ -255,8 +255,8 @@ def _build_pdf(invoice, client, s=None):
          Paragraph('FAKTURA', ParagraphStyle('ft', fontSize=9, textColor=MID_GREY, alignment=TA_RIGHT, fontName=FONT_BOLD))],
         [Paragraph(s.get('company_subtitle', ''), tag_s),
          Paragraph(f"<b>{invoice['invoice_number']}</b>", inv_b)],
-        ['', Paragraph(f"Vystaveno: {invoice['issue_date']}", inv_s)],
-        ['', Paragraph(f"Splatnost: {invoice['due_date']}", inv_s)],
+        ['', Paragraph(f"Vystaveno: {invoice['issue_date'][8:10]}/{invoice['issue_date'][5:7]}/{invoice['issue_date'][0:4]}", inv_s)],
+        ['', Paragraph(f"Splatnost: {invoice['due_date'][8:10]}/{invoice['due_date'][5:7]}/{invoice['due_date'][0:4]}", inv_s)],
     ], colWidths=[4*inch, 3*inch])
     header_table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3)]))
     story += [header_table, Spacer(1,0.1*inch), HRFlowable(width="100%",thickness=2,color=BLACK),
