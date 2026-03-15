@@ -299,20 +299,25 @@ def check_overdue(conn=None):
 
 
 def get_invoice_stats():
-    """Returns dashboard stats dict."""
+    """Returns dashboard stats dict. Always returns ints/floats, never None."""
     with get_db() as conn:
         check_overdue(conn)
         row = conn.execute('''
             SELECT
-                COUNT(*)                                        as total,
-                SUM(status='paid')                              as paid,
-                SUM(status='unpaid')                            as unpaid,
-                SUM(status='overdue')                           as overdue,
-                COALESCE(SUM(CASE WHEN status='paid' THEN total END), 0)    as revenue,
+                COUNT(*)                                                                   as total,
+                COALESCE(SUM(status='paid'), 0)                                           as paid,
+                COALESCE(SUM(status='unpaid'), 0)                                         as unpaid,
+                COALESCE(SUM(status='overdue'), 0)                                        as overdue,
+                COALESCE(SUM(CASE WHEN status='paid' THEN total END), 0)                  as revenue,
                 COALESCE(SUM(CASE WHEN status IN ('unpaid','overdue') THEN total END), 0) as outstanding
             FROM invoices
         ''').fetchone()
-    return _row_to_dict(row)
+    d = _row_to_dict(row)
+    for k in ('total', 'paid', 'unpaid', 'overdue'):
+        d[k] = int(d[k] or 0)
+    for k in ('revenue', 'outstanding'):
+        d[k] = float(d[k] or 0)
+    return d
 
 
 def get_next_invoice_number(prefix='INV'):
