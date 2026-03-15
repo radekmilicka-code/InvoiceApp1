@@ -75,23 +75,16 @@ def _build_email_body(invoice, client, s):
     return body
 
 
-def send_invoice_email(invoice, client, pdf_bytes, subject=None, body=None):
-    s = load_settings()
-    api_key = s.get('resend_api_key', '')
-    if not api_key:
-        return False, 'Resend API klic neni nastaven. Vyplnte ho v Nastaveni.'
-    if not client.get('email'):
-        return False, 'Klient nema vyplneny e-mail.'
-
+def _send_via_resend(invoice, client, pdf_bytes, subject, body, s):
+    """Send via Resend.com API."""
+    api_key   = s.get('resend_api_key', '')
     company   = s.get('company_name', 'Fakturace')
     from_addr = f"{company} <onboarding@resend.dev>"
-    subject   = subject or f"Faktura {invoice['invoice_number']} od {company}"
-    body      = body or _build_email_body(invoice, client, s)
 
     import json as _json
     payload = _json.dumps({
         'from': from_addr,
-        'to': [client['email']],
+        'to':   [client['email']],
         'subject': subject,
         'text': body,
         'attachments': [{'filename': f"{invoice['invoice_number']}.pdf",
@@ -107,9 +100,69 @@ def send_invoice_email(invoice, client, pdf_bytes, subject=None, body=None):
         with urllib.request.urlopen(req, timeout=20):
             return True, None
     except urllib.error.HTTPError as e:
-        return False, f'Resend API chyba {e.code}: {e.read().decode("utf-8", errors="ignore")[:200]}'
+        return False, f'Resend chyba {e.code}: {e.read().decode("utf-8", errors="ignore")[:200]}'
     except Exception as e:
         return False, f'Chyba: {str(e)}'
+
+
+def _send_via_brevo(invoice, client, pdf_bytes, subject, body, s):
+    """Send via Brevo (sendinblue) API v3."""
+    api_key     = s.get('brevo_api_key', '')
+    company     = s.get('company_name', 'Fakturace')
+    sender_name = company
+    sender_email = s.get('email') or 'noreply@example.com'
+
+    import json as _json
+    payload = _json.dumps({
+        'sender':  {'name': sender_name, 'email': sender_email},
+        'to':      [{'email': client['email'], 'name': client.get('name', '')}],
+        'subject': subject,
+        'textContent': body,
+        'attachment': [{
+            'name':    f"{invoice['invoice_number']}.pdf",
+            'content': base64.b64encode(pdf_bytes).decode('utf-8'),
+        }],
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        'https://api.brevo.com/v3/smtp/email', data=payload,
+        headers={
+            'api-key':      api_key,
+            'Content-Type': 'application/json',
+            'Accept':       'application/json',
+        },
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20):
+            return True, None
+    except urllib.error.HTTPError as e:
+        err = e.read().decode('utf-8', errors='ignore')[:200]
+        return False, f'Brevo chyba {e.code}: {err}'
+    except Exception as e:
+        return False, f'Chyba: {str(e)}'
+
+
+def send_invoice_email(invoice, client, pdf_bytes, subject=None, body=None):
+    s        = load_settings()
+    provider = s.get('email_provider', 'resend')
+
+    if not client.get('email'):
+        return False, 'Klient nema vyplneny e-mail.'
+
+    company = s.get('company_name', 'Fakturace')
+    subject = subject or f"Faktura {invoice['invoice_number']} od {company}"
+    body    = body    or _build_email_body(invoice, client, s)
+
+    if provider == 'brevo':
+        if not s.get('brevo_api_key'):
+            return False, 'Brevo API klic neni nastaven. Vyplnte ho v Nastaveni.'
+        return _send_via_brevo(invoice, client, pdf_bytes, subject, body, s)
+    else:
+        if not s.get('resend_api_key'):
+            return False, 'Resend API klic neni nastaven. Vyplnte ho v Nastaveni.'
+        return _send_via_resend(invoice, client, pdf_bytes, subject, body, s)
+
 
 
 def send_reminders():
@@ -343,7 +396,9 @@ def settings():
             'invoice_prefix':   request.form.get('invoice_prefix', 'INV'),
             'default_due_days': request.form.get('default_due_days', 14),
             'default_tax_rate': request.form.get('default_tax_rate', 21),
+            'email_provider':   request.form.get('email_provider', 'resend'),
             'resend_api_key':   request.form.get('resend_api_key', ''),
+            'brevo_api_key':    request.form.get('brevo_api_key', ''),
             'reminder_days':    request.form.get('reminder_days', 3),
         })
         flash('Nastavení bylo uloženo.', 'success')
@@ -663,7 +718,7 @@ def export_invoices_csv():
     output.seek(0)
     return send_file(output, as_attachment=True,
                      download_name=f"faktury_export_{date.today().isoformat()}.csv",
-                     mimetype='text/csv; charset=utf-8')
+                     mimetype='text/csv')
 
 @app.route('/export/clients/csv')
 @login_required
@@ -681,7 +736,7 @@ def export_clients_csv():
     output.seek(0)
     return send_file(output, as_attachment=True,
                      download_name=f"klienti_export_{date.today().isoformat()}.csv",
-                     mimetype='text/csv; charset=utf-8')
+                     mimetype='text/csv')
 
 @app.route('/import/clients/csv', methods=['POST'])
 @login_required
@@ -703,6 +758,155 @@ def import_clients_csv():
         flash(f'Chyba při importu: {str(e)}', 'error')
     return redirect(url_for('clients'))
 
+
+
+@app.route('/import/invoices/csv', methods=['POST'])
+@login_required
+def import_invoices_csv():
+    file = request.files.get('file') or request.files.get('csv_file')
+    if not file or not file.filename.endswith('.csv'):
+        flash('Prosím nahrajte soubor CSV.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        raw = file.read()
+        if raw.startswith(b'\xef\xbb\xbf'):
+            raw = raw[3:]
+
+        # Auto-detect delimiter
+        sample = raw[:2000].decode('utf-8', errors='ignore')
+        delimiter = ';' if sample.count(';') >= sample.count(',') else ','
+
+        reader = csv.DictReader(
+            io.StringIO(raw.decode('utf-8', errors='ignore')),
+            delimiter=delimiter
+        )
+
+        # Column name aliases — handles export from this app + common Excel variations
+        def col(row, *keys):
+            for k in keys:
+                if k in row and row[k].strip():
+                    return row[k].strip()
+            return ''
+
+        def parse_amount(val):
+            """Parse Czech decimal comma or dot: '1 234,50' or '1234.50'"""
+            if not val:
+                return 0.0
+            return float(val.replace(' ', '').replace(',', '.'))
+
+        status_map = {
+            'zaplaceno': 'paid', 'paid': 'paid',
+            'nezaplaceno': 'unpaid', 'unpaid': 'unpaid',
+            'po splatnosti': 'overdue', 'overdue': 'overdue',
+        }
+
+        clients     = get_all_clients()
+        client_map  = {c['name'].lower(): c['id'] for c in clients}
+        s           = load_settings()
+        prefix      = s.get('invoice_prefix', 'INV')
+
+        added = skipped = 0
+        errors = []
+
+        for i, row in enumerate(reader, 1):
+            try:
+                # ── Resolve client ────────────────────────────────────────────
+                client_name = col(row, 'Klient', 'klient', 'client', 'Client')
+                client_id   = client_map.get(client_name.lower())
+
+                if not client_id:
+                    # Create client on the fly if they don't exist yet
+                    if client_name:
+                        new_c = create_client(name=client_name)
+                        client_id = new_c['id']
+                        client_map[client_name.lower()] = client_id
+                    else:
+                        skipped += 1
+                        errors.append(f'Řádek {i}: chybí název klienta')
+                        continue
+
+                # ── Dates ─────────────────────────────────────────────────────
+                issue_date = col(row, 'Datum vystavení', 'datum vystaveni', 'issue_date', 'Issue Date', 'Datum', 'Date')
+                due_date   = col(row, 'Datum splatnosti', 'datum splatnosti', 'due_date', 'Due Date', 'Splatnost')
+
+                if not issue_date:
+                    issue_date = date.today().isoformat()
+                if not due_date:
+                    from datetime import timedelta
+                    due_date = (date.today() + timedelta(days=int(s.get('default_due_days', 14)))).isoformat()
+
+                # Normalize date format dd.mm.yyyy -> yyyy-mm-dd
+                for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
+                    try:
+                        from datetime import datetime as dt
+                        issue_date = dt.strptime(issue_date, fmt).date().isoformat()
+                        break
+                    except ValueError:
+                        pass
+                for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
+                    try:
+                        from datetime import datetime as dt
+                        due_date = dt.strptime(due_date, fmt).date().isoformat()
+                        break
+                    except ValueError:
+                        pass
+
+                # ── Amounts ───────────────────────────────────────────────────
+                subtotal   = parse_amount(col(row, 'Mezisoučet (Kč)', 'mezisoucet', 'subtotal', 'Subtotal', 'Mezisoučet'))
+                tax_rate   = parse_amount(col(row, 'DPH (%)', 'dph_%', 'tax_rate', 'DPH'))
+                total      = parse_amount(col(row, 'Celkem (Kč)', 'celkem', 'total', 'Total'))
+
+                # If only total given, work backwards
+                if total and not subtotal:
+                    subtotal = round(total / (1 + tax_rate / 100), 2) if tax_rate else total
+
+                # ── Status ────────────────────────────────────────────────────
+                status_raw = col(row, 'Stav', 'stav', 'status', 'Status').lower()
+                status     = status_map.get(status_raw, 'unpaid')
+
+                # ── Invoice number — always generate new to avoid conflicts ──
+                inv_num = get_next_invoice_number(prefix)
+
+                # ── Create invoice with one summary line item ─────────────────
+                notes = col(row, 'Poznámky', 'poznamky', 'notes', 'Notes')
+                orig_num = col(row, 'Číslo faktury', 'cislo faktury', 'invoice_number', 'Invoice Number', 'Invoice')
+                if orig_num:
+                    notes = f'Původní číslo: {orig_num}' + (f' | {notes}' if notes else '')
+
+                inv = create_invoice(
+                    invoice_number=inv_num,
+                    client_id=client_id,
+                    issue_date=issue_date,
+                    due_date=due_date,
+                    items=[{
+                        'name': f'Import ({orig_num})' if orig_num else 'Importovaná položka',
+                        'qty': 1,
+                        'price': subtotal or total,
+                    }],
+                    tax_rate=tax_rate,
+                    notes=notes,
+                )
+
+                # Update status if paid/overdue
+                if status != 'unpaid':
+                    update_invoice_status(inv['id'], status)
+
+                added += 1
+
+            except Exception as e:
+                skipped += 1
+                errors.append(f'Řádek {i}: {str(e)[:80]}')
+
+        msg = f'Import dokončen: {added} přidáno, {skipped} přeskočeno.'
+        flash(msg, 'success')
+        if errors:
+            flash('Chyby: ' + ' | '.join(errors[:5]), 'error')
+
+    except Exception as e:
+        flash(f'Chyba při čtení souboru: {str(e)}', 'error')
+
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

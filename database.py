@@ -128,7 +128,9 @@ def create_client(name, company=None, email=None, phone=None, address=None):
             'INSERT INTO clients (name, company, email, phone, address) VALUES (?,?,?,?,?)',
             (name, company or None, email, phone or None, address or None)
         )
-        return get_client(cur.lastrowid)
+        new_id = cur.lastrowid
+        row = conn.execute('SELECT * FROM clients WHERE id=?', (new_id,)).fetchone()
+        return _row_to_dict(row)
 
 
 def update_client(client_id, name, company=None, email=None, phone=None, address=None):
@@ -203,7 +205,9 @@ def create_product(name, description=None, category=None, unit='ks',
                VALUES (?,?,?,?,?,?,?)''',
             (name, description, category, unit, price, tax_rate, stock)
         )
-        return get_product(cur.lastrowid)
+        new_id = cur.lastrowid
+        row = conn.execute('SELECT * FROM products WHERE id=?', (new_id,)).fetchone()
+        return _row_to_dict(row)
 
 
 def update_product(product_id, name, description=None, category=None, unit='ks',
@@ -362,18 +366,27 @@ def get_invoice_stats():
 
 
 def get_next_invoice_number(prefix='INV'):
+    """
+    Scans all invoices with this prefix and returns MAX+1.
+    Never collides even after imports or mixed prefixes.
+    """
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT invoice_number FROM invoices ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-    if not row:
-        return f'{prefix}-0001'
-    last = row['invoice_number']
-    try:
-        num = int(last.split('-')[-1]) + 1
-    except (ValueError, IndexError):
-        num = 1
-    return f'{prefix}-{num:04d}'
+        rows = conn.execute(
+            'SELECT invoice_number FROM invoices WHERE invoice_number LIKE ?',
+            (f'{prefix}-%',)
+        ).fetchall()
+        total = conn.execute('SELECT COUNT(*) FROM invoices').fetchone()[0]
+    max_num = 0
+    for row in rows:
+        try:
+            num = int(row['invoice_number'].split('-')[-1])
+            if num > max_num:
+                max_num = num
+        except (ValueError, IndexError):
+            pass
+    next_num = max(max_num + 1, total + 1)
+    return f'{prefix}-{next_num:04d}'
+
 
 
 def create_invoice(invoice_number, client_id, issue_date, due_date,
@@ -410,7 +423,7 @@ def create_invoice(invoice_number, client_id, issue_date, due_date,
                   item['qty'],
                   item['price'],
                   item['subtotal']))
-
+    # get_invoice must be called AFTER the transaction commits (outside the with block)
     return get_invoice(inv_id)
 
 
@@ -508,7 +521,9 @@ DEFAULT_SETTINGS = {
     'invoice_prefix':   'INV',
     'default_due_days': '14',
     'default_tax_rate': '21',
+    'email_provider':   'resend',  # 'resend' or 'brevo'
     'resend_api_key':   '',
+    'brevo_api_key':    '',
     'reminder_days':    '3',
 }
 

@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Nastavení</h1>
+    <div class="page-desc">Údaje o firmě se zobrazují na každé faktuře a PDF</div>
+  </div>
+</div>
+
+<form method="post">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; align-items:start;">
+
+  <!-- Firma -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Identifikace firmy</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Název firmy</label>
+        <input type="text" name="company_name" value="{{ s.company_name }}" placeholder="Vaše firma s.r.o.">
+      </div>
+      <div class="form-group">
+        <label>Podtitulek</label>
+        <input type="text" name="company_subtitle" value="{{ s.company_subtitle }}" placeholder="Pekárna & Cukrárna">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>IČO</label>
+        <input type="text" name="ico" value="{{ s.ico }}" placeholder="12345678">
+      </div>
+      <div class="form-group">
+        <label>DIČ</label>
+        <input type="text" name="dic" value="{{ s.dic }}" placeholder="CZ12345678">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Adresa</label>
+      <textarea name="address" style="min-height:60px;">{{ s.address }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" name="email" value="{{ s.email }}" placeholder="info@firma.cz">
+      </div>
+      <div class="form-group">
+        <label>Telefon</label>
+        <input type="text" name="phone" value="{{ s.phone }}" placeholder="+420 777 123 456">
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:1.25rem;">
+    <!-- Platební údaje -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Platební údaje</div>
+      </div>
+      <div class="form-group">
+        <label>Číslo účtu</label>
+        <input type="text" name="bank_account" value="{{ s.bank_account }}" placeholder="123456789/0800">
+      </div>
+      <div class="form-group">
+        <label>IBAN</label>
+        <input type="text" name="iban" value="{{ s.iban }}" placeholder="CZ65 0800 0000 0012 3456 7890">
+        <div class="form-hint">Slouží pro generování QR kódu na PDF faktuře</div>
+      </div>
+    </div>
+
+    <!-- Výchozí hodnoty -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Výchozí hodnoty faktury</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prefix čísla faktury</label>
+          <input type="text" name="invoice_prefix" value="{{ s.invoice_prefix }}" placeholder="INV">
+        </div>
+        <div class="form-group">
+          <label>Splatnost (dní)</label>
+          <input type="number" name="default_due_days" value="{{ s.default_due_days }}" min="1" max="365">
+        </div>
+        <div class="form-group">
+          <label>Výchozí DPH (%)</label>
+          <input type="number" name="default_tax_rate" value="{{ s.default_tax_rate }}" min="0" max="100" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Email provider -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Odesílání e-mailů</div>
+      </div>
+
+      <div class="form-group">
+        <label>E-mailový provider</label>
+        <select name="email_provider" id="emailProvider" onchange="toggleProvider()">
+          <option value="resend" {% if s.email_provider != 'brevo' %}selected{% endif %}>Resend.com</option>
+          <option value="brevo"  {% if s.email_provider == 'brevo'  %}selected{% endif %}>Brevo (Sendinblue)</option>
+        </select>
+      </div>
+
+      <div id="resendSection" style="display:{% if s.email_provider == 'brevo' %}none{% else %}block{% endif %}">
+        <div class="alert alert-info" style="font-size:0.8rem; margin-bottom:0.75rem;">
+          Zaregistruj se na <a href="https://resend.com" target="_blank" style="color:var(--accent);">resend.com</a>
+          → API Keys → Create. Free tier = 3 000 e-mailů/měsíc.
+        </div>
+        <div class="form-group">
+          <label>Resend API klíč</label>
+          <input type="password" name="resend_api_key" value="{{ s.resend_api_key }}" placeholder="re_xxxxxxxxxxxx">
+        </div>
+        {% if s.resend_api_key and s.email_provider != 'brevo' %}
+        <div class="alert alert-success" style="font-size:0.8rem;">✓ Resend API klíč nastaven — odesílání aktivní</div>
+        {% elif s.email_provider != 'brevo' %}
+        <div class="alert alert-warning" style="font-size:0.8rem;">⚠ API klíč není nastaven. <a href="https://resend.com/signup" target="_blank">Registrace →</a></div>
+        {% endif %}
+      </div>
+
+      <div id="brevoSection" style="display:{% if s.email_provider == 'brevo' %}block{% else %}none{% endif %}">
+        <div class="alert alert-info" style="font-size:0.8rem; margin-bottom:0.75rem;">
+          Zaregistruj se na <a href="https://app.brevo.com" target="_blank" style="color:var(--accent);">app.brevo.com</a>
+          → Nastavení → SMTP &amp; API → API Keys → Generovat klíč. Free tier = 300 e-mailů/den.
+          Jako odesílatel se použije firemní e-mail z sekce výše — musí být vyplněný.
+        </div>
+        <div class="form-group">
+          <label>Brevo API klíč</label>
+          <input type="password" name="brevo_api_key" value="{{ s.brevo_api_key }}" placeholder="xkeysib-...">
+        </div>
+        {% if s.brevo_api_key and s.email_provider == 'brevo' %}
+        <div class="alert alert-success" style="font-size:0.8rem;">✓ Brevo API klíč nastaven — odesílání aktivní</div>
+        {% elif s.email_provider == 'brevo' %}
+        <div class="alert alert-warning" style="font-size:0.8rem;">⚠ API klíč není nastaven. <a href="https://app.brevo.com" target="_blank">Registrace →</a></div>
+        {% endif %}
+      </div>
+
+      <div class="form-group" style="margin-top:1rem;">
+        <label>Upomínky po (dní)</label>
+        <input type="number" name="reminder_days" value="{{ s.reminder_days }}" min="1" max="60" style="width:120px;">
+      </div>
+
+      <script>
+      function toggleProvider() {
+        const v = document.getElementById('emailProvider').value;
+        document.getElementById('resendSection').style.display = v === 'resend' ? 'block' : 'none';
+        document.getElementById('brevoSection').style.display  = v === 'brevo'  ? 'block' : 'none';
+      }
+      </script>
+    </div>
+      {% if s.resend_api_key %}
+      <div class="alert alert-success" style="font-size:0.8rem;">✓ Resend API klíč je nastaven — odesílání e-mailů aktivní</div>
+      {% else %}
+      <div class="alert alert-warning" style="font-size:0.8rem;">
+        ⚠ Bez API klíče nebude odesílání fungovat.
+        <a href="https://resend.com/signup" target="_blank">Zaregistrovat se →</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:1.25rem;">
+  <button type="submit" class="btn btn-primary">Uložit nastavení</button>
+</div>
+</form>
+
+<!-- Záloha databáze -->
+<div class="card" style="margin-top:1.25rem; border-color:#e0e7ff;">
+  <div class="card-header">
+    <div class="card-title">Záloha databáze</div>
+  </div>
+  <div class="alert alert-info" style="font-size:0.8rem; margin-bottom:1.25rem;">
+    💡 Stáhněte zálohu <strong>před každým větším updatem</strong>. Záloha obsahuje všechna data — faktury, klienty, produkty, nastavení.
+  </div>
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+    <div style="flex:1; min-width:220px;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">Stáhnout zálohu</div>
+      <p style="font-size:0.82rem; color:var(--muted); margin-bottom:0.75rem; line-height:1.5;">Kompletní SQL dump databáze. Lze použít pro obnovu nebo přesun na jiný server.</p>
+      <a href="/backup/download" class="btn btn-outline">⬇ Stáhnout zálohu (.sql)</a>
+    </div>
+    <div style="width:1px; background:var(--border);"></div>
+    <div style="flex:1; min-width:220px;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">Obnovit ze zálohy</div>
+      <p style="font-size:0.82rem; color:var(--muted); margin-bottom:0.75rem; line-height:1.5;">
+        <strong style="color:var(--red);">⚠ Přepíše všechna aktuální data!</strong> Použijte pouze pro obnovu po havárii.
+      </p>
+      <form method="post" action="/backup/restore" enctype="multipart/form-data"
+            onsubmit="return confirm('Opravdu chcete přepsat všechna data zálohou? Tato akce je nevratná.')">
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <input type="file" name="backup_file" accept=".sql" required
+                 style="font-size:0.82rem; padding:0.4rem; border:1.5px solid var(--border); border-radius:8px; background:white; flex:1; min-width:150px;">
+          <button type="submit" class="btn btn-danger btn-sm">Obnovit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
