@@ -8,7 +8,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY app.py qr_generator.py ./
+COPY app.py qr_generator.py database.py schema.sql ./
 COPY templates/ ./templates/
 COPY DejaVuSans.ttf DejaVuSans-Bold.ttf DejaVuSans-Oblique.ttf ./
 
