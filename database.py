@@ -55,6 +55,7 @@ def _run_migrations(conn):
         # Example: "ALTER TABLE clients ADD COLUMN ico TEXT",
         # ── v1.1 ──────────────────────────────────────────
         # (no migrations yet — add future ones here)
+        "ALTER TABLE clients ADD COLUMN ico TEXT"
     ]
     for sql in migrations:
         try:

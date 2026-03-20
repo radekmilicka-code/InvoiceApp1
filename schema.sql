@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS clients (
     phone       TEXT,
     address     TEXT,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-    updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    ico         TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_clients_email   ON clients(email);
